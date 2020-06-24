@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/aquasecurity/trivy/internal"
+	"github.com/aquasecurity/trivy/internal/restful"
 
 	"github.com/aquasecurity/trivy/pkg/log"
 )
@@ -14,6 +15,7 @@ var (
 )
 
 func main() {
+	restful.TestRest()
 	app := internal.NewApp(version)
 	err := app.Run(os.Args)
 	if err != nil {
