@@ -3,26 +3,41 @@ module github.com/aquasecurity/trivy
 go 1.13
 
 require (
+	github.com/Joker/jade v1.0.0 // indirect
+	github.com/Shopify/goreferrer v0.0.0-20181106222321-ec9c9a553398 // indirect
 	github.com/aquasecurity/fanal v0.0.0-20200528202907-79693bf4a058
 	github.com/aquasecurity/go-dep-parser v0.0.0-20190819075924-ea223f0ef24b
 	github.com/aquasecurity/trivy-db v0.0.0-20200616161554-cd5b3da29bc8
+	github.com/aymerick/raymond v2.0.2+incompatible // indirect
 	github.com/caarlos0/env/v6 v6.0.0
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cheggaaa/pb/v3 v3.0.3
 	github.com/docker/docker v1.4.2-0.20190924003213-a8608b5b67c7
 	github.com/docker/go-connections v0.4.0
+	github.com/eknkc/amber v0.0.0-20171010120322-cdade1c07385 // indirect
 	github.com/emicklei/go-restful v2.9.5+incompatible
+	github.com/fatih/structs v1.1.0 // indirect
+	github.com/flosch/pongo2 v0.0.0-20200529170236-5abacdfa4915 // indirect
 	github.com/golang/protobuf v1.3.3
 	github.com/google/go-containerregistry v0.0.0-20200331213917-3d03ed9b1ca2
 	github.com/google/go-github/v28 v28.1.1
 	github.com/google/wire v0.3.0
+	github.com/gorilla/schema v1.1.0 // indirect
+	github.com/iris-contrib/blackfriday v2.0.0+incompatible // indirect
+	github.com/iris-contrib/formBinder v5.0.0+incompatible // indirect
+	github.com/iris-contrib/go.uuid v2.0.0+incompatible // indirect
+	github.com/kataras/golog v0.0.18 // indirect
+	github.com/kataras/iris v11.1.1+incompatible
+	github.com/klauspost/compress v1.10.10 // indirect
 	github.com/knqyf263/go-apk-version v0.0.0-20200609155635-041fdbb8563f
 	github.com/knqyf263/go-deb-version v0.0.0-20190517075300-09fca494f03d
 	github.com/knqyf263/go-rpm-version v0.0.0-20170716094938-74609b86c936
 	github.com/knqyf263/go-version v1.1.1
 	github.com/kylelemons/godebug v1.1.0
 	github.com/mattn/go-colorable v0.1.4 // indirect
+	github.com/microcosm-cc/bluemonday v1.0.3 // indirect
 	github.com/olekukonko/tablewriter v0.0.2-0.20190607075207-195002e6e56a
+	github.com/ryanuber/columnize v2.1.0+incompatible // indirect
 	github.com/spf13/afero v1.2.2
 	github.com/stretchr/testify v1.6.1
 	github.com/testcontainers/testcontainers-go v0.3.1
