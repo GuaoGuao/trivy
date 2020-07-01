@@ -12,7 +12,7 @@ import (
 	"github.com/aquasecurity/trivy/pkg/scanner"
 )
 
-func repositoryScanner(ctx context.Context, dir string, ac cache.ArtifactCache, lac cache.LocalArtifactCache, timeout time.Duration) (
+func RepositoryScanner(ctx context.Context, dir string, ac cache.ArtifactCache, lac cache.LocalArtifactCache, timeout time.Duration) (
 	scanner.Scanner, func(), error) {
 	s, cleanup, err := initializeRepositoryScanner(ctx, dir, ac, lac)
 	if err != nil {
@@ -32,5 +32,5 @@ func RepositoryRun(cliCtx *cli.Context) error {
 		return xerrors.Errorf("failed to initialize options: %w", err)
 	}
 
-	return run(c, repositoryScanner)
+	return run(c, RepositoryScanner)
 }

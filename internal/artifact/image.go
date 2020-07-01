@@ -12,7 +12,7 @@ import (
 	"github.com/aquasecurity/trivy/pkg/scanner"
 )
 
-func archiveScanner(ctx context.Context, input string, ac cache.ArtifactCache, lac cache.LocalArtifactCache, timeout time.Duration) (
+func ArchiveScanner(ctx context.Context, input string, ac cache.ArtifactCache, lac cache.LocalArtifactCache, timeout time.Duration) (
 	scanner.Scanner, func(), error) {
 	s, err := initializeArchiveScanner(ctx, input, ac, lac, timeout)
 	if err != nil {
@@ -21,7 +21,7 @@ func archiveScanner(ctx context.Context, input string, ac cache.ArtifactCache, l
 	return s, func() {}, nil
 }
 
-func dockerScanner(ctx context.Context, imageName string, ac cache.ArtifactCache, lac cache.LocalArtifactCache, timeout time.Duration) (
+func DockerScanner(ctx context.Context, imageName string, ac cache.ArtifactCache, lac cache.LocalArtifactCache, timeout time.Duration) (
 	scanner.Scanner, func(), error) {
 	s, cleanup, err := initializeDockerScanner(ctx, imageName, ac, lac, timeout)
 	if err != nil {
@@ -43,8 +43,8 @@ func ImageRun(cliCtx *cli.Context) error {
 
 	if c.Input != "" {
 		// scan tar file
-		return run(c, archiveScanner)
+		return run(c, ArchiveScanner)
 	}
 
-	return run(c, dockerScanner)
+	return run(c, DockerScanner)
 }

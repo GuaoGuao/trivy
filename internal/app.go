@@ -15,6 +15,7 @@ import (
 	"github.com/aquasecurity/trivy/internal/artifact"
 	"github.com/aquasecurity/trivy/internal/client"
 	"github.com/aquasecurity/trivy/internal/server"
+	"github.com/aquasecurity/trivy/internal/webservice"
 	tdb "github.com/aquasecurity/trivy/pkg/db"
 	"github.com/aquasecurity/trivy/pkg/utils"
 	"github.com/aquasecurity/trivy/pkg/vulnerability"
@@ -244,6 +245,7 @@ func NewApp(version string) *cli.App {
 		NewRepositoryCommand(),
 		NewClientCommand(),
 		NewServerCommand(),
+		NewWebServiceCommand(),
 	}
 	app.Action = artifact.ImageRun
 	return app
@@ -450,5 +452,14 @@ func NewServerCommand() *cli.Command {
 				EnvVars: []string{"TRIVY_LISTEN"},
 			},
 		},
+	}
+}
+
+func NewWebServiceCommand() *cli.Command {
+	return &cli.Command{
+		Name:    "webservice",
+		Aliases: []string{"web"},
+		Usage:   "web mode",
+		Action:  webservice.Run,
 	}
 }
