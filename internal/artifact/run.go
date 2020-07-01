@@ -2,9 +2,9 @@ package artifact
 
 import (
 	"context"
+	"encoding/json"
 	l "log"
 	"os"
-	"strings"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -36,25 +36,14 @@ func RunWeb(c config.Config, initializeScanner InitializeScanner, context iris.C
 	}
 
 	if c.ExitCode != 0 {
-		for _, result := range results {
-			for _, v := range result.Vulnerabilities {
-				title := v.Title
-				if title == "" {
-					title = v.Description
-				}
-				splittedTitle := strings.Split(title, " ")
-				if len(splittedTitle) >= 12 {
-					title = strings.Join(splittedTitle[:12], " ") + "..."
-				}
-				row := []string{v.PkgName, v.VulnerabilityID, v.Severity, v.InstalledVersion, v.FixedVersion}
-				for _, r := range row {
-					context.WriteString(r)
-				}
-			}
-			if len(result.Vulnerabilities) > 0 {
-				os.Exit(c.ExitCode)
-			}
+		// TODO 当前仅支持输出 JSON
+		output, err := json.MarshalIndent(results, "", "  ")
+		if err != nil {
+			return xerrors.Errorf("failed to marshal json: %w", err)
 		}
+
+		context.WriteString(string(output))
+
 	}
 	return nil
 }
@@ -105,11 +94,11 @@ func subrun(c config.Config, initializeScanner InitializeScanner) (report.Result
 	// download the database file
 	// noProgress := c.Quiet || c.NoProgress
 	// if err = operation.DownloadDB(c.AppVersion, c.CacheDir, noProgress, c.Light, c.SkipUpdate); err != nil {
-	// 	return err
+	// 	return nil, err
 	// }
 
 	// if c.DownloadDBOnly {
-	// 	return nil
+	// 	return nil, nil
 	// }
 
 	if err = db.Init(c.CacheDir); err != nil {
@@ -146,5 +135,5 @@ func subrun(c config.Config, initializeScanner InitializeScanner) (report.Result
 		results[i].Vulnerabilities = vulnClient.Filter(results[i].Vulnerabilities,
 			c.Severities, c.IgnoreUnfixed, c.IgnoreFile)
 	}
-	return nil, nil
+	return results, nil
 }

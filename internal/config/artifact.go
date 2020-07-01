@@ -5,7 +5,6 @@ import (
 
 	"github.com/urfave/cli/v2"
 	"go.uber.org/zap"
-	"golang.org/x/xerrors"
 )
 
 type ArtifactConfig struct {
@@ -26,13 +25,13 @@ func NewArtifactConfig(c *cli.Context) ArtifactConfig {
 }
 
 func (c *ArtifactConfig) Init(args cli.Args, logger *zap.SugaredLogger) (err error) {
-	if c.Input == "" && args.Len() == 0 {
-		logger.Error(`trivy requires at least 1 argument or --input option`)
-		return xerrors.New("arguments error")
-	} else if args.Len() > 1 {
-		logger.Error(`multiple targets cannot be specified`)
-		return xerrors.New("arguments error")
-	}
+	// if c.Input == "" && args.Len() == 0 {
+	// 	logger.Error(`trivy requires at least 1 argument or --input option`)
+	// 	return xerrors.New("arguments error")
+	// } else if args.Len() > 1 {
+	// 	logger.Error(`multiple targets cannot be specified`)
+	// 	return xerrors.New("arguments error")
+	// }
 
 	if c.Input == "" {
 		c.Target = args.First()

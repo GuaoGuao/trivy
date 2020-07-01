@@ -1,7 +1,6 @@
 package config
 
 import (
-	"github.com/kataras/iris"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
 
@@ -42,16 +41,14 @@ func New(c *cli.Context) (Config, error) {
 	}, nil
 }
 
-func (c *Config) Init(image bool, context iris.Context) error {
+func (c *Config) Init(image bool) error {
 	if err := c.ReportConfig.Init(c.Logger); err != nil {
-		context.WriteString("==c.ReportConfig.Init(c.Logger);==")
 		return err
 	}
 	if c.onlyUpdate != "" || c.refresh || c.autoRefresh {
 		c.Logger.Warn("--only-update, --refresh and --auto-refresh are unnecessary and ignored now. These commands will be removed in the next version.")
 	}
 	if err := c.DBConfig.Init(); err != nil {
-		context.WriteString("==c.DBConfig.Init();==")
 		return err
 	}
 
@@ -61,7 +58,6 @@ func (c *Config) Init(image bool, context iris.Context) error {
 	}
 
 	if err := c.ArtifactConfig.Init(c.Context.Args(), c.Logger); err != nil {
-		context.WriteString("==c.ArtifactConfig.Init();==")
 		cli.ShowAppHelp(c.Context)
 		return err
 	}

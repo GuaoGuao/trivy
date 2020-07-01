@@ -46,7 +46,7 @@ func typeHandler(context iris.Context) {
 
 	if scanType == "image" {
 		// initialize config
-		if err = c.Init(true, context); err != nil {
+		if err = c.Init(true); err != nil {
 			context.WriteString("failed to initialize options: " + err.Error())
 			return
 		}
@@ -60,12 +60,13 @@ func typeHandler(context iris.Context) {
 		artifact.RunWeb(c, artifact.DockerScanner, context)
 	} else {
 		// initialize config
-		if err = c.Init(false, context); err != nil {
+		if err = c.Init(false); err != nil {
 			context.WriteString("failed to initialize options: " + err.Error())
 			return
 		}
 
 		c.Target = name
+		c.ExitCode = 1
 		artifact.RunWeb(c, artifact.RepositoryScanner, context)
 	}
 }
