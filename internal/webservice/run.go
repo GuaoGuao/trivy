@@ -24,7 +24,7 @@ func Run(cliCtx *cli.Context) error {
 
 	webapp.Get("/scanner", typeHandler)
 
-	webapp.Run(iris.Addr(":9328"), iris.WithoutServerError(iris.ErrServerClosed))
+	webapp.Run(iris.Addr(":9327"), iris.WithoutServerError(iris.ErrServerClosed))
 	return nil
 }
 
