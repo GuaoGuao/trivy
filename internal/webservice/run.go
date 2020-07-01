@@ -64,6 +64,7 @@ func typeHandler(context iris.Context) {
 			return
 		}
 		c.Target = name
+		c.ExitCode = 1
 
 		if c.Input != "" {
 			// scan tar file
