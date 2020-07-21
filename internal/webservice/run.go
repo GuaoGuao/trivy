@@ -24,6 +24,7 @@ func Run(cliCtx *cli.Context) error {
 	webapp.Use(Cors)
 
 	webapp.Get("/scanner", typeHandler)
+	webapp.Get("/listimages", listimages)
 
 	webapp.Run(iris.Addr(":9327"), iris.WithoutServerError(iris.ErrServerClosed))
 	return nil
@@ -83,6 +84,19 @@ func typeHandler(context iris.Context) {
 		c.ExitCode = 1
 		artifact.RunWeb(c, artifact.RepositoryScanner, context)
 	}
+}
+
+func listimages(context iris.Context) {
+	cmd := exec.Command("docker image list")
+	cmd.Stdin = bytes.NewBuffer(nil)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err := cmd.Run()
+	if err != nil {
+		fmt.Printf("Command finished with error: %v", err)
+		context.WriteString(string(err.Error()))
+	}
+	context.WriteString(out.String())
 }
 
 // RunRestful 第一个版本
