@@ -87,7 +87,7 @@ func typeHandler(context iris.Context) {
 }
 
 func listimages(context iris.Context) {
-	cmd := exec.Command("docker image list")
+	cmd := exec.Command("docker", "image", "list")
 	cmd.Stdin = bytes.NewBuffer(nil)
 	var out bytes.Buffer
 	cmd.Stdout = &out
