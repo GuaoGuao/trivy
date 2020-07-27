@@ -3,14 +3,10 @@ package webservice
 import (
 	"bytes"
 	"fmt"
-	"io"
-	"log"
-	"net/http"
 	"os/exec"
 
 	"github.com/aquasecurity/trivy/internal/artifact"
 	"github.com/aquasecurity/trivy/internal/artifact/config"
-	"github.com/emicklei/go-restful"
 	"github.com/kataras/iris"
 	"github.com/urfave/cli/v2"
 )
@@ -100,40 +96,40 @@ func listimages(context iris.Context) {
 }
 
 // RunRestful 第一个版本
-func RunRestful() {
-	wsContainer := restful.NewContainer()
+// func RunRestful() {
+// 	wsContainer := restful.NewContainer()
 
-	ws := new(restful.WebService)
-	ws.Route(ws.GET("/").To(doScan))
-	wsContainer.Add(ws)
+// 	ws := new(restful.WebService)
+// 	ws.Route(ws.GET("/").To(doScan))
+// 	wsContainer.Add(ws)
 
-	// Add container filter to enable CORS
-	cors := restful.CrossOriginResourceSharing{
-		ExposeHeaders:  []string{"X-My-Header"},
-		AllowedHeaders: []string{"Content-Type", "Accept"},
-		AllowedMethods: []string{"GET", "POST"},
-		CookiesAllowed: false,
-		Container:      wsContainer,
-	}
-	wsContainer.Filter(cors.Filter)
+// 	// Add container filter to enable CORS
+// 	cors := restful.CrossOriginResourceSharing{
+// 		ExposeHeaders:  []string{"X-My-Header"},
+// 		AllowedHeaders: []string{"Content-Type", "Accept"},
+// 		AllowedMethods: []string{"GET", "POST"},
+// 		CookiesAllowed: false,
+// 		Container:      wsContainer,
+// 	}
+// 	wsContainer.Filter(cors.Filter)
 
-	wsContainer.Filter(wsContainer.OPTIONSFilter)
+// 	wsContainer.Filter(wsContainer.OPTIONSFilter)
 
-	log.Print("start listening on localhost:9328")
-	server := &http.Server{Addr: ":9328", Handler: wsContainer}
-	log.Fatal(server.ListenAndServe())
-}
+// 	log.Print("start listening on localhost:9328")
+// 	server := &http.Server{Addr: ":9328", Handler: wsContainer}
+// 	log.Fatal(server.ListenAndServe())
+// }
 
-func doScan(req *restful.Request, resp *restful.Response) {
-	cmd := exec.Command("trivy", "repo", "https://github.com/knqyf263/trivy-ci-test")
-	in := bytes.NewBuffer(nil)
-	cmd.Stdin = in
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	err := cmd.Run()
-	if err != nil {
-		fmt.Printf("Command finished with error: %v", err)
-		io.WriteString(resp.ResponseWriter, err.Error())
-	}
-	io.WriteString(resp.ResponseWriter, out.String())
-}
+// func doScan(req *restful.Request, resp *restful.Response) {
+// 	cmd := exec.Command("trivy", "repo", "https://github.com/knqyf263/trivy-ci-test")
+// 	in := bytes.NewBuffer(nil)
+// 	cmd.Stdin = in
+// 	var out bytes.Buffer
+// 	cmd.Stdout = &out
+// 	err := cmd.Run()
+// 	if err != nil {
+// 		fmt.Printf("Command finished with error: %v", err)
+// 		io.WriteString(resp.ResponseWriter, err.Error())
+// 	}
+// 	io.WriteString(resp.ResponseWriter, out.String())
+// }
