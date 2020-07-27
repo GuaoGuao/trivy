@@ -96,6 +96,8 @@ func subrun(c config.Config, initializeScanner InitializeScanner) (report.Result
 
 	// download the database file
 	noProgress := c.Quiet || c.NoProgress
+	log.Logger.Warn("=============lihang=================")
+	log.Logger.Warn(c.CacheDir)
 	if err = operation.DownloadDB(c.AppVersion, c.CacheDir, noProgress, c.Light, c.SkipUpdate); err != nil {
 		return nil, err
 	}
