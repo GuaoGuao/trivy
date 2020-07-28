@@ -14,6 +14,7 @@ import (
 	"github.com/aquasecurity/trivy/internal/artifact/config"
 	"github.com/aquasecurity/trivy/internal/operation"
 	tdb "github.com/aquasecurity/trivy/pkg/db"
+	"github.com/aquasecurity/trivy/pkg/history"
 	"github.com/aquasecurity/trivy/pkg/log"
 	"github.com/aquasecurity/trivy/pkg/report"
 	"github.com/aquasecurity/trivy/pkg/scanner"
@@ -31,6 +32,8 @@ func RunWeb(c config.Config, initializeScanner InitializeScanner, context iris.C
 	if err != nil {
 		return err
 	}
+
+	history.Save(c.CacheDir, results)
 
 	if err = report.WriteResults(c.Format, c.Output, results, c.Template, c.Light); err != nil {
 		return xerrors.Errorf("unable to write results: %w", err)
@@ -96,8 +99,6 @@ func subrun(c config.Config, initializeScanner InitializeScanner) (report.Result
 
 	// download the database file
 	noProgress := c.Quiet || c.NoProgress
-	log.Logger.Warn("=============lihang=================")
-	log.Logger.Warn(c.CacheDir)
 	if err = operation.DownloadDB(c.AppVersion, c.CacheDir, noProgress, c.Light, c.SkipUpdate); err != nil {
 		return nil, err
 	}
