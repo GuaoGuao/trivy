@@ -235,6 +235,6 @@ func (m Metadata) Get() (db.Metadata, error) {
 }
 
 func WriteResults(results []byte) error {
-	fmt.Println(string(results))
+	fmt.Println(len(results))
 	return nil
 }

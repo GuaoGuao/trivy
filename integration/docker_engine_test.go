@@ -246,9 +246,9 @@ func TestRun_WithDockerEngine(t *testing.T) {
 	}
 
 	// Copy DB file
-	cacheDir, err := gunzipDB()
-	require.NoError(t, err)
-	defer os.RemoveAll(cacheDir)
+	// cacheDir, err := gunzipDB()
+	// require.NoError(t, err)
+	// defer os.RemoveAll(cacheDir)
 
 	ctx := context.Background()
 	defer ctx.Done()
@@ -285,7 +285,7 @@ func TestRun_WithDockerEngine(t *testing.T) {
 			// run trivy
 			app := internal.NewApp("dev")
 			trivyArgs := []string{"trivy"}
-			trivyArgs = append(trivyArgs, "--cache-dir", cacheDir)
+			// trivyArgs = append(trivyArgs, "--cache-dir", cacheDir)
 			if tc.withImageSubcommand {
 				trivyArgs = append(trivyArgs, "image")
 			}

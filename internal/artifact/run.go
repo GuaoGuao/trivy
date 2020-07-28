@@ -13,6 +13,7 @@ import (
 	"github.com/aquasecurity/trivy-db/pkg/db"
 	"github.com/aquasecurity/trivy/internal/artifact/config"
 	"github.com/aquasecurity/trivy/internal/operation"
+	"github.com/aquasecurity/trivy/internal/webcontext"
 	tdb "github.com/aquasecurity/trivy/pkg/db"
 	"github.com/aquasecurity/trivy/pkg/history"
 	"github.com/aquasecurity/trivy/pkg/log"
@@ -20,20 +21,19 @@ import (
 	"github.com/aquasecurity/trivy/pkg/scanner"
 	"github.com/aquasecurity/trivy/pkg/types"
 	"github.com/aquasecurity/trivy/pkg/utils"
-	"github.com/kataras/iris"
 )
 
 type InitializeScanner func(context.Context, string, cache.ArtifactCache, cache.LocalArtifactCache, time.Duration) (
 	scanner.Scanner, func(), error)
 
 // RunWeb 调用 web 接口时用的，需要返回结果
-func RunWeb(c config.Config, initializeScanner InitializeScanner, context iris.Context) error {
+func RunWeb(c config.Config, initializeScanner InitializeScanner, wc webcontext.WebContext) error {
 	results, err := subrun(c, initializeScanner)
 	if err != nil {
 		return err
 	}
 
-	history.Save(c.CacheDir, results)
+	history.Save(c.CacheDir, results, wc)
 
 	if err = report.WriteResults(c.Format, c.Output, results, c.Template, c.Light); err != nil {
 		return xerrors.Errorf("unable to write results: %w", err)
@@ -48,6 +48,7 @@ func RunWeb(c config.Config, initializeScanner InitializeScanner, context iris.C
 
 		tdb.WriteResults(output)
 
+		context := wc.Ictx
 		context.WriteString(string(output))
 
 	}

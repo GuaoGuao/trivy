@@ -4,25 +4,26 @@ import (
 	"bytes"
 	"fmt"
 	"os/exec"
+	"time"
 
 	"github.com/aquasecurity/trivy/internal/artifact"
 	"github.com/aquasecurity/trivy/internal/artifact/config"
+	"github.com/aquasecurity/trivy/internal/webcontext"
 	"github.com/kataras/iris"
 	"github.com/urfave/cli/v2"
 )
 
-var webapp *iris.Application
-var ctx *cli.Context
+var wc webcontext.WebContext
 
 func Run(cliCtx *cli.Context) error {
-	ctx = cliCtx
-	webapp = iris.New()
-	webapp.Use(Cors)
+	wc.Ctx = cliCtx
+	wc.Webapp = iris.New()
+	wc.Webapp.Use(Cors)
 
-	webapp.Get("/scanner", typeHandler)
-	webapp.Get("/listimages", listimages)
+	wc.Webapp.Get("/scanner", typeHandler)
+	wc.Webapp.Get("/listimages", listimages)
 
-	webapp.Run(iris.Addr(":9327"), iris.WithoutServerError(iris.ErrServerClosed))
+	wc.Webapp.Run(iris.Addr(":9327"), iris.WithoutServerError(iris.ErrServerClosed))
 	return nil
 }
 
@@ -40,15 +41,17 @@ func Cors(ctx iris.Context) {
 
 func typeHandler(context iris.Context) {
 	path := context.Path()
-	webapp.Logger().Info(path)
+	wc.Webapp.Logger().Info(path)
+	wc.BeginTime = time.Now()
+	wc.Ictx = context
 	//获取get请求所携带的参数
 	scanType := context.URLParam("type")
-	webapp.Logger().Info(scanType)
+	wc.Webapp.Logger().Info(scanType)
 
 	name := context.URLParam("name")
-	webapp.Logger().Info(name)
+	wc.Webapp.Logger().Info(name)
 
-	c, err := config.New(ctx)
+	c, err := config.New(wc.Ctx)
 	if err != nil {
 		context.WriteString(err.Error())
 		return
@@ -65,10 +68,10 @@ func typeHandler(context iris.Context) {
 
 		if c.Input != "" {
 			// scan tar file
-			artifact.RunWeb(c, artifact.ArchiveScanner, context)
+			artifact.RunWeb(c, artifact.ArchiveScanner, wc)
 		}
 
-		artifact.RunWeb(c, artifact.DockerScanner, context)
+		artifact.RunWeb(c, artifact.DockerScanner, wc)
 	} else {
 		// initialize config
 		if err = c.Init(false); err != nil {
@@ -78,7 +81,7 @@ func typeHandler(context iris.Context) {
 
 		c.Target = name
 		c.ExitCode = 1
-		artifact.RunWeb(c, artifact.RepositoryScanner, context)
+		artifact.RunWeb(c, artifact.RepositoryScanner, wc)
 	}
 }
 
