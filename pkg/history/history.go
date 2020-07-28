@@ -2,6 +2,7 @@ package history
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/aquasecurity/trivy/internal/webcontext"
 	"github.com/aquasecurity/trivy/pkg/log"
@@ -53,6 +54,8 @@ func formatRes(results report.Results) []byte {
 
 	length := len(results)
 	vuls := make([]vul, length, 10)
+	fmt.Println("---------------lihang1----------")
+	fmt.Println(results)
 
 	for i := range results {
 		res := results[i]
