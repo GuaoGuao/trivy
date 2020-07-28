@@ -2,7 +2,6 @@ package history
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/aquasecurity/trivy/internal/webcontext"
 	"github.com/aquasecurity/trivy/pkg/log"
@@ -47,8 +46,8 @@ func Save(cacheDir string, results report.Results, wc webcontext.WebContext) err
 // 直接保存扫描结果太大，只保存 VulnerabilityID，用得时候再查
 func formatRes(results report.Results) []byte {
 	type vul struct {
-		target          string
-		typec           string
+		Target          string
+		Typec           string
 		VulnerabilityID string
 	}
 
@@ -57,20 +56,18 @@ func formatRes(results report.Results) []byte {
 
 	for i := range results {
 		res := results[i]
-		vuls[i].target = res.Target
-		vuls[i].typec = res.Type
+		vuls[i].Target = res.Target
+		vuls[i].Typec = res.Type
 		vuls[i].VulnerabilityID = ""
 		for j := range res.Vulnerabilities {
-			vuls[i].VulnerabilityID += res.Vulnerabilities[j].VulnerabilityID + " || "
+			vuls[i].VulnerabilityID += res.Vulnerabilities[j].VulnerabilityID
+			if j != len(res.Vulnerabilities)-1 {
+				vuls[i].VulnerabilityID += " || "
+			}
 		}
 	}
 
-	fmt.Println("---------------lihang1----------")
-	fmt.Println(vuls)
-
 	res, err := json.Marshal(vuls)
-	fmt.Println("---------------lihang1----------")
-	fmt.Println(string(res))
 	if err != nil {
 		log.Logger.Debug("error when formatRes: %s", err)
 	}
