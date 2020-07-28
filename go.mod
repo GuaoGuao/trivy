@@ -7,7 +7,7 @@ require (
 	github.com/Shopify/goreferrer v0.0.0-20181106222321-ec9c9a553398 // indirect
 	github.com/aquasecurity/fanal v0.0.0-20200528202907-79693bf4a058
 	github.com/aquasecurity/go-dep-parser v0.0.0-20190819075924-ea223f0ef24b
-	github.com/aquasecurity/trivy-db v0.0.0-20200616161554-cd5b3da29bc8
+	github.com/aquasecurity/trivy-db v0.0.0-20200719151232-94297d005007
 	github.com/aymerick/raymond v2.0.2+incompatible // indirect
 	github.com/caarlos0/env/v6 v6.0.0
 	github.com/cenkalti/backoff v2.2.1+incompatible
