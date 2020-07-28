@@ -51,9 +51,8 @@ func formatRes(results report.Results) []byte {
 		VulnerabilityID string
 	}
 
-	var (
-		vuls []vul
-	)
+	length := len(results)
+	vuls := make([]vul, length, 10)
 
 	for i := range results {
 		res := results[i]
