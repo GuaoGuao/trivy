@@ -54,11 +54,11 @@ func formatRes(results report.Results) []byte {
 
 	length := len(results)
 	vuls := make([]vul, length, 10)
-	fmt.Println("---------------lihang1----------")
-	fmt.Println(results)
 
 	for i := range results {
 		res := results[i]
+		fmt.Println("---------------lihang1----------")
+		fmt.Println(res.Target)
 		vuls[i].target = res.Target
 		vuls[i].typec = res.Type
 		vuls[i].VulnerabilityID = ""
@@ -68,6 +68,8 @@ func formatRes(results report.Results) []byte {
 	}
 
 	res, err := json.MarshalIndent(vuls, "", "  ")
+	fmt.Println("---------------lihang1----------")
+	fmt.Println(res)
 	if err != nil {
 		log.Logger.Debug("error when formatRes: %s", err)
 	}
