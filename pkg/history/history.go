@@ -60,7 +60,7 @@ func formatRes(results report.Results) []byte {
 		vuls[i].target = res.Target
 		vuls[i].typec = res.Type
 		vuls[i].VulnerabilityID = ""
-		for j := range vuls[i].VulnerabilityID {
+		for j := range res.Vulnerabilities {
 			vuls[i].VulnerabilityID += res.Vulnerabilities[j].VulnerabilityID + " || "
 		}
 	}
