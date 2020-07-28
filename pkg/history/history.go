@@ -68,7 +68,7 @@ func formatRes(results report.Results) []byte {
 	fmt.Println("---------------lihang1----------")
 	fmt.Println(vuls)
 
-	res, err := json.MarshalIndent(vuls, "", "  ")
+	res, err := json.Marshal(vuls)
 	fmt.Println("---------------lihang1----------")
 	fmt.Println(string(res))
 	if err != nil {
