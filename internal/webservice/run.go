@@ -9,6 +9,7 @@ import (
 	"github.com/aquasecurity/trivy/internal/artifact"
 	"github.com/aquasecurity/trivy/internal/artifact/config"
 	"github.com/aquasecurity/trivy/internal/webcontext"
+	"github.com/aquasecurity/trivy/pkg/history"
 	"github.com/kataras/iris"
 	"github.com/urfave/cli/v2"
 )
@@ -22,6 +23,8 @@ func Run(cliCtx *cli.Context) error {
 
 	wc.Webapp.Get("/scanner", typeHandler)
 	wc.Webapp.Get("/listimages", listimages)
+	wc.Webapp.Get("/history/get", getHistory)
+	wc.Webapp.Get("/history/delete", deleteHistory)
 
 	wc.Webapp.Run(iris.Addr(":9327"), iris.WithoutServerError(iris.ErrServerClosed))
 	return nil
@@ -96,6 +99,30 @@ func listimages(context iris.Context) {
 		context.WriteString(string(err.Error()))
 	}
 	context.WriteString(out.String())
+}
+
+func getHistory(context iris.Context) {
+	c, err := config.New(wc.Ctx)
+	if err != nil {
+		context.WriteString(err.Error())
+		return
+	}
+	wc.BeginTime = time.Now()
+	wc.Ictx = context
+
+	history.Get(c.CacheDir, wc)
+}
+
+func deleteHistory(context iris.Context) {
+	c, err := config.New(wc.Ctx)
+	if err != nil {
+		context.WriteString(err.Error())
+		return
+	}
+	wc.BeginTime = time.Now()
+	wc.Ictx = context
+
+	history.Delete(c.CacheDir, wc)
 }
 
 // RunRestful 第一个版本

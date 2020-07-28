@@ -96,3 +96,20 @@ func Get(cacheDir string, wc webcontext.WebContext) {
 		return nil
 	})
 }
+
+func Delete(cacheDir string, wc webcontext.WebContext) {
+	dbPath := db.Path(cacheDir)
+	db, err := bolt.Open(dbPath, 0666, nil)
+	if err != nil {
+		log.Logger.Debug("exception on Open db: %s", err)
+	}
+
+	db.Update(func(tx *bolt.Tx) error {
+		err := tx.DeleteBucket([]byte(historyBucket))
+		if err != nil {
+			wc.Ictx.WriteString("err when Delete")
+			return err
+		}
+		return nil
+	})
+}
