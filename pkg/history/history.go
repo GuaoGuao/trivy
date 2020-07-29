@@ -2,17 +2,27 @@ package history
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/aquasecurity/trivy/internal/webcontext"
 	"github.com/aquasecurity/trivy/pkg/log"
+	"github.com/aquasecurity/trivy/pkg/types"
 	"github.com/boltdb/bolt"
+	"golang.org/x/xerrors"
 
 	"github.com/aquasecurity/trivy/pkg/report"
 
 	"github.com/aquasecurity/trivy-db/pkg/db"
 )
 
-var historyBucket = "history"
+type vul struct {
+	Target          string
+	Typec           string
+	VulnerabilityID string
+}
+
+const historyBucket = "history"
+const vulsBucket = "vulnerability"
 
 func Save(cacheDir string, results report.Results, wc webcontext.WebContext) error {
 	dbPath := db.Path(cacheDir)
@@ -45,12 +55,6 @@ func Save(cacheDir string, results report.Results, wc webcontext.WebContext) err
 
 // 直接保存扫描结果太大，只保存 VulnerabilityID，用得时候再查
 func formatRes(results report.Results) []byte {
-	type vul struct {
-		Target          string
-		Typec           string
-		VulnerabilityID string
-	}
-
 	length := len(results)
 	vuls := make([]vul, length, 10)
 
@@ -83,16 +87,58 @@ func Get(cacheDir string, wc webcontext.WebContext) {
 	}
 
 	db.View(func(tx *bolt.Tx) error {
+		data := make([]vul, 10, 10)
 		b := tx.Bucket([]byte(historyBucket))
 		if err != nil {
 			log.Logger.Debug("error when open bucket: %s", err)
 		}
 		c := b.Cursor()
-		for k, v := c.First(); k != nil; k, v = c.Next() {
-			d := tx.Bucket(v)
+
+		log.Logger.Debug("================logger1================")
+
+		// 循环每一天
+		for k, _ := c.First(); k != nil; k, _ = c.Next() {
+			d := b.Bucket(k)
 			e := d.Cursor()
+
+			// 循环一天的每一次
 			for k1, v1 := e.First(); k1 != nil; k1, v1 = e.Next() {
-				wc.Ictx.WriteString(string(v1) + " || ")
+				err := json.Unmarshal(v1, &data)
+				log.Logger.Debug("================logger2================")
+				if err != nil {
+					log.Logger.Debug("error when unmarshal json: %s", err)
+					return nil
+				}
+				// 查出来的结果转成 report.Result 再输出
+				var results report.Results
+
+				// 循环每一种 Type
+				for _, vul := range data {
+					result := report.Result{
+						Target:          vul.Target,
+						Type:            vul.Typec,
+						Vulnerabilities: []types.DetectedVulnerability{},
+					}
+					idArr := strings.Split(vul.VulnerabilityID, " || ")
+					log.Logger.Debug("================logger3================")
+
+					// 循环每个 漏洞
+					for _, id := range idArr {
+						vlusB := tx.Bucket([]byte(vulsBucket))
+						value := vlusB.Get([]byte(id))
+						var vulFromID types.DetectedVulnerability
+						json.Unmarshal(value, &vulFromID)
+						vulFromID.VulnerabilityID = id
+						result.Vulnerabilities = append(result.Vulnerabilities, vulFromID)
+					}
+
+					results = append(results, result)
+					output, err := json.MarshalIndent(results, "", "  ")
+					if err != nil {
+						return xerrors.Errorf("failed to marshal json: %w", err)
+					}
+					wc.Ictx.WriteString(string(output))
+				}
 			}
 		}
 		return nil

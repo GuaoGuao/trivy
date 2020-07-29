@@ -4,7 +4,6 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -232,9 +231,4 @@ func (m Metadata) Get() (db.Metadata, error) {
 		return db.Metadata{}, xerrors.Errorf("unable to decode metadata: %w", err)
 	}
 	return metadata, nil
-}
-
-func WriteResults(results []byte) error {
-	fmt.Println(len(results))
-	return nil
 }

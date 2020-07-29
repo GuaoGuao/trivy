@@ -14,7 +14,6 @@ import (
 	"github.com/aquasecurity/trivy/internal/artifact/config"
 	"github.com/aquasecurity/trivy/internal/operation"
 	"github.com/aquasecurity/trivy/internal/webcontext"
-	tdb "github.com/aquasecurity/trivy/pkg/db"
 	"github.com/aquasecurity/trivy/pkg/history"
 	"github.com/aquasecurity/trivy/pkg/log"
 	"github.com/aquasecurity/trivy/pkg/report"
@@ -45,8 +44,6 @@ func RunWeb(c config.Config, initializeScanner InitializeScanner, wc webcontext.
 		if err != nil {
 			return xerrors.Errorf("failed to marshal json: %w", err)
 		}
-
-		tdb.WriteResults(output)
 
 		context := wc.Ictx
 		context.WriteString(string(output))
@@ -99,14 +96,14 @@ func subrun(c config.Config, initializeScanner InitializeScanner) (report.Result
 	}
 
 	// download the database file
-	noProgress := c.Quiet || c.NoProgress
-	if err = operation.DownloadDB(c.AppVersion, c.CacheDir, noProgress, c.Light, c.SkipUpdate); err != nil {
-		return nil, err
-	}
+	// noProgress := c.Quiet || c.NoProgress
+	// if err = operation.DownloadDB(c.AppVersion, c.CacheDir, noProgress, c.Light, c.SkipUpdate); err != nil {
+	// 	return nil, err
+	// }
 
-	if c.DownloadDBOnly {
-		return nil, nil
-	}
+	// if c.DownloadDBOnly {
+	// 	return nil, nil
+	// }
 
 	if err = db.Init(c.CacheDir); err != nil {
 		return nil, xerrors.Errorf("error in vulnerability DB initialize: %w", err)
