@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/aquasecurity/trivy/internal/webcontext"
+	"github.com/aquasecurity/trivy/internal/config"
 	"github.com/aquasecurity/trivy/pkg/log"
 	"github.com/aquasecurity/trivy/pkg/types"
 	"github.com/boltdb/bolt"
@@ -21,15 +21,18 @@ type vul struct {
 	VulnerabilityID string
 }
 
-const historyBucket = "history"
-const vulsBucket = "vulnerability"
+const (
+	historyBucket = "history"
+	vulsBucket    = "vulnerability"
+)
 
-func Save(cacheDir string, results report.Results, wc webcontext.WebContext) error {
+func Save(cacheDir string, results report.Results, wc config.WebContext) error {
 	dbPath := db.Path(cacheDir)
 	db, err := bolt.Open(dbPath, 0666, nil)
 	if err != nil {
 		log.Logger.Debug("exception on Open db: %s", err)
 	}
+	defer db.Close()
 
 	db.Update(func(tx *bolt.Tx) error {
 		b, err := tx.CreateBucketIfNotExists([]byte(historyBucket))
@@ -79,12 +82,13 @@ func formatRes(results report.Results) []byte {
 	return res
 }
 
-func Get(cacheDir string, wc webcontext.WebContext) {
+func Get(cacheDir string, wc config.WebContext) {
 	dbPath := db.Path(cacheDir)
 	db, err := bolt.Open(dbPath, 0666, nil)
 	if err != nil {
 		log.Logger.Debug("exception on Open db: %s", err)
 	}
+	defer db.Close()
 
 	db.View(func(tx *bolt.Tx) error {
 		data := make([]vul, 10, 10)
@@ -94,8 +98,6 @@ func Get(cacheDir string, wc webcontext.WebContext) {
 		}
 		c := b.Cursor()
 
-		log.Logger.Debug("================logger1================")
-
 		// 循环每一天
 		for k, _ := c.First(); k != nil; k, _ = c.Next() {
 			d := b.Bucket(k)
@@ -104,7 +106,6 @@ func Get(cacheDir string, wc webcontext.WebContext) {
 			// 循环一天的每一次
 			for k1, v1 := e.First(); k1 != nil; k1, v1 = e.Next() {
 				err := json.Unmarshal(v1, &data)
-				log.Logger.Debug("================logger2================")
 				if err != nil {
 					log.Logger.Debug("error when unmarshal json: %s", err)
 					return nil
@@ -120,7 +121,6 @@ func Get(cacheDir string, wc webcontext.WebContext) {
 						Vulnerabilities: []types.DetectedVulnerability{},
 					}
 					idArr := strings.Split(vul.VulnerabilityID, " || ")
-					log.Logger.Debug("================logger3================")
 
 					// 循环每个 漏洞
 					for _, id := range idArr {
@@ -131,26 +131,26 @@ func Get(cacheDir string, wc webcontext.WebContext) {
 						vulFromID.VulnerabilityID = id
 						result.Vulnerabilities = append(result.Vulnerabilities, vulFromID)
 					}
-
 					results = append(results, result)
-					output, err := json.MarshalIndent(results, "", "  ")
-					if err != nil {
-						return xerrors.Errorf("failed to marshal json: %w", err)
-					}
-					wc.Ictx.WriteString(string(output))
 				}
+				output, err := json.MarshalIndent(results, "", "  ")
+				if err != nil {
+					return xerrors.Errorf("failed to marshal json: %w", err)
+				}
+				wc.Ictx.WriteString(string(output))
 			}
 		}
 		return nil
 	})
 }
 
-func Delete(cacheDir string, wc webcontext.WebContext) {
+func Delete(cacheDir string, wc config.WebContext) {
 	dbPath := db.Path(cacheDir)
 	db, err := bolt.Open(dbPath, 0666, nil)
 	if err != nil {
 		log.Logger.Debug("exception on Open db: %s", err)
 	}
+	defer db.Close()
 
 	db.Update(func(tx *bolt.Tx) error {
 		err := tx.DeleteBucket([]byte(historyBucket))

@@ -2,7 +2,6 @@ package artifact
 
 import (
 	"context"
-	"encoding/json"
 	l "log"
 	"os"
 	"time"
@@ -12,8 +11,8 @@ import (
 	"github.com/aquasecurity/fanal/cache"
 	"github.com/aquasecurity/trivy-db/pkg/db"
 	"github.com/aquasecurity/trivy/internal/artifact/config"
+	configup "github.com/aquasecurity/trivy/internal/config"
 	"github.com/aquasecurity/trivy/internal/operation"
-	"github.com/aquasecurity/trivy/internal/webcontext"
 	"github.com/aquasecurity/trivy/pkg/history"
 	"github.com/aquasecurity/trivy/pkg/log"
 	"github.com/aquasecurity/trivy/pkg/report"
@@ -26,30 +25,19 @@ type InitializeScanner func(context.Context, string, cache.ArtifactCache, cache.
 	scanner.Scanner, func(), error)
 
 // RunWeb 调用 web 接口时用的，需要返回结果
-func RunWeb(c config.Config, initializeScanner InitializeScanner, wc webcontext.WebContext) error {
+func RunWeb(c config.Config, initializeScanner InitializeScanner, wc configup.WebContext) (interface{}, error) {
 	results, err := subrun(c, initializeScanner)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	history.Save(c.CacheDir, results, wc)
 
 	if err = report.WriteResults(c.Format, c.Output, results, c.Template, c.Light); err != nil {
-		return xerrors.Errorf("unable to write results: %w", err)
+		return nil, xerrors.Errorf("unable to write results: %w", err)
 	}
 
-	if c.ExitCode != 0 {
-		// TODO 当前仅支持输出 JSON
-		output, err := json.MarshalIndent(results, "", "  ")
-		if err != nil {
-			return xerrors.Errorf("failed to marshal json: %w", err)
-		}
-
-		context := wc.Ictx
-		context.WriteString(string(output))
-
-	}
-	return nil
+	return results, nil
 }
 
 func run(c config.Config, initializeScanner InitializeScanner) error {

@@ -2,31 +2,43 @@ package webservice
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"os/exec"
 	"time"
 
 	"github.com/aquasecurity/trivy/internal/artifact"
 	"github.com/aquasecurity/trivy/internal/artifact/config"
-	"github.com/aquasecurity/trivy/internal/webcontext"
+	configup "github.com/aquasecurity/trivy/internal/config"
 	"github.com/aquasecurity/trivy/pkg/history"
+	"github.com/aquasecurity/trivy/pkg/user"
 	"github.com/kataras/iris"
+	"github.com/kataras/iris/sessions"
 	"github.com/urfave/cli/v2"
 )
 
-var wc webcontext.WebContext
+var wc configup.WebContext
+var sess = sessions.New(sessions.Config{Cookie: "secret"})
 
 func Run(cliCtx *cli.Context) error {
 	wc.Ctx = cliCtx
 	wc.Webapp = iris.New()
 	wc.Webapp.Use(Cors)
 
-	wc.Webapp.Get("/scanner", typeHandler)
+	wc.Webapp.Post("/scanner", typeHandler)
 	wc.Webapp.Get("/listimages", listimages)
+
 	wc.Webapp.Get("/history/get", getHistory)
-	wc.Webapp.Get("/history/delete", deleteHistory)
+	wc.Webapp.Post("/history/delete", deleteHistory)
+
+	wc.Webapp.Get("/user/login", login)
+	wc.Webapp.Get("/user/logout", logout)
+	wc.Webapp.Get("/user/add", userAdd)
+	wc.Webapp.Get("/user/delete", userDelete)
+	wc.Webapp.Get("/user/get", userGet)
 
 	wc.Webapp.Run(iris.Addr(":9327"), iris.WithoutServerError(iris.ErrServerClosed))
+
 	return nil
 }
 
@@ -74,7 +86,8 @@ func typeHandler(context iris.Context) {
 			artifact.RunWeb(c, artifact.ArchiveScanner, wc)
 		}
 
-		artifact.RunWeb(c, artifact.DockerScanner, wc)
+		results, err := artifact.RunWeb(c, artifact.DockerScanner, wc)
+		respWriter(context, results, err)
 	} else {
 		// initialize config
 		if err = c.Init(false); err != nil {
@@ -84,7 +97,8 @@ func typeHandler(context iris.Context) {
 
 		c.Target = name
 		c.ExitCode = 1
-		artifact.RunWeb(c, artifact.RepositoryScanner, wc)
+		results, err := artifact.RunWeb(c, artifact.RepositoryScanner, wc)
+		respWriter(context, results, err)
 	}
 }
 
@@ -93,19 +107,17 @@ func listimages(context iris.Context) {
 	cmd.Stdin = bytes.NewBuffer(nil)
 	var out bytes.Buffer
 	cmd.Stdout = &out
+
 	err := cmd.Run()
-	if err != nil {
-		fmt.Printf("Command finished with error: %v", err)
-		context.WriteString(string(err.Error()))
-	}
-	context.WriteString(out.String())
+
+	respWriter(context, out, err)
 }
 
 func getHistory(context iris.Context) {
 	c, err := config.New(wc.Ctx)
 	if err != nil {
-		context.WriteString(err.Error())
-		return
+		fmt.Printf("err when create new config: %v", err)
+		respWriter(context, nil, err)
 	}
 	wc.BeginTime = time.Now()
 	wc.Ictx = context
@@ -125,41 +137,109 @@ func deleteHistory(context iris.Context) {
 	history.Delete(c.CacheDir, wc)
 }
 
-// RunRestful 第一个版本
-// func RunRestful() {
-// 	wsContainer := restful.NewContainer()
+func login(context iris.Context) {
+	session := sess.Start(context)
 
-// 	ws := new(restful.WebService)
-// 	ws.Route(ws.GET("/").To(doScan))
-// 	wsContainer.Add(ws)
+	c, err := config.New(wc.Ctx)
+	if err != nil {
+		context.WriteString(err.Error())
+		return
+	}
+	wc.BeginTime = time.Now()
+	wc.Ictx = context
 
-// 	// Add container filter to enable CORS
-// 	cors := restful.CrossOriginResourceSharing{
-// 		ExposeHeaders:  []string{"X-My-Header"},
-// 		AllowedHeaders: []string{"Content-Type", "Accept"},
-// 		AllowedMethods: []string{"GET", "POST"},
-// 		CookiesAllowed: false,
-// 		Container:      wsContainer,
-// 	}
-// 	wsContainer.Filter(cors.Filter)
+	flag := user.Login(c.CacheDir, wc)
+	if !flag {
+		return
+	}
 
-// 	wsContainer.Filter(wsContainer.OPTIONSFilter)
+	session.Set("authenticated", true)
+}
 
-// 	log.Print("start listening on localhost:9328")
-// 	server := &http.Server{Addr: ":9328", Handler: wsContainer}
-// 	log.Fatal(server.ListenAndServe())
-// }
+func logout(context iris.Context) {
+	session := sess.Start(context)
+	session.Set("authenticated", false)
+}
 
-// func doScan(req *restful.Request, resp *restful.Response) {
-// 	cmd := exec.Command("trivy", "repo", "https://github.com/knqyf263/trivy-ci-test")
-// 	in := bytes.NewBuffer(nil)
-// 	cmd.Stdin = in
-// 	var out bytes.Buffer
-// 	cmd.Stdout = &out
-// 	err := cmd.Run()
-// 	if err != nil {
-// 		fmt.Printf("Command finished with error: %v", err)
-// 		io.WriteString(resp.ResponseWriter, err.Error())
-// 	}
-// 	io.WriteString(resp.ResponseWriter, out.String())
-// }
+func userAdd(context iris.Context) {
+	c, err := config.New(wc.Ctx)
+	if err != nil {
+		context.WriteString(err.Error())
+		return
+	}
+	wc.BeginTime = time.Now()
+	wc.Ictx = context
+
+	user.Add(c.CacheDir, wc)
+}
+
+func userDelete(context iris.Context) {
+	c, err := config.New(wc.Ctx)
+	if err != nil {
+		context.WriteString(err.Error())
+		return
+	}
+	wc.BeginTime = time.Now()
+	wc.Ictx = context
+
+	user.Delete(c.CacheDir, wc)
+}
+
+func userGet(context iris.Context) {
+	c, err := config.New(wc.Ctx)
+	if err != nil {
+		context.WriteString(err.Error())
+		return
+	}
+	wc.BeginTime = time.Now()
+	wc.Ictx = context
+
+	user.Get(c.CacheDir, wc)
+}
+
+// 验证会话
+func checkSession(context iris.Context) (bool, error) {
+	if auth, _ := sess.Start(context).GetBoolean("authenticated"); !auth {
+		res := configup.Response{
+			Status: configup.Codes["SUCCESS"],
+			Msg:    "未登录，请登录后再试",
+		}
+
+		jsonRes, err := json.Marshal(res)
+		if err != nil {
+			fmt.Printf("err when marshal res json: %v", err)
+			res.Status = configup.Codes["JSONERROR"]
+			res.Msg = "JSON 转换错误"
+			res.Data = err
+		}
+
+		context.WriteString(string(jsonRes))
+		return false, nil
+	}
+	return true, nil
+}
+
+// 写入返回
+func respWriter(context iris.Context, data interface{}, err error) {
+	res := configup.Response{
+		Status: "000",
+		Msg:    "Success",
+		Data:   data,
+	}
+
+	if err != nil {
+		res.Status = configup.Codes["FAIL"]
+		res.Msg = "服务器异常，请稍后重试"
+		res.Data = err
+	}
+
+	jsonRes, err := json.Marshal(res)
+	if err != nil {
+		fmt.Printf("err when marshal res json: %v", err)
+		res.Status = configup.Codes["JSONERROR"]
+		res.Msg = "JSON 转换错误"
+		res.Data = err
+	}
+
+	context.WriteString(string(jsonRes))
+}
