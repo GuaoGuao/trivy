@@ -55,6 +55,9 @@ func Cors(ctx iris.Context) {
 }
 
 func typeHandler(context iris.Context) {
+	if flag := checkSession(context); !flag {
+		return
+	}
 	path := context.Path()
 	wc.Webapp.Logger().Info(path)
 	wc.BeginTime = time.Now()
@@ -103,6 +106,9 @@ func typeHandler(context iris.Context) {
 }
 
 func listimages(context iris.Context) {
+	if flag := checkSession(context); !flag {
+		return
+	}
 	cmd := exec.Command("docker", "image", "list")
 	cmd.Stdin = bytes.NewBuffer(nil)
 	var out bytes.Buffer
@@ -114,6 +120,9 @@ func listimages(context iris.Context) {
 }
 
 func getHistory(context iris.Context) {
+	if flag := checkSession(context); !flag {
+		return
+	}
 	c, err := config.New(wc.Ctx)
 	if err != nil {
 		fmt.Printf("err when create new config: %v", err)
@@ -122,19 +131,29 @@ func getHistory(context iris.Context) {
 	wc.BeginTime = time.Now()
 	wc.Ictx = context
 
-	history.Get(c.CacheDir, wc)
+	results, err := history.Get(c.CacheDir, wc)
+	respWriter(context, results, err)
 }
 
 func deleteHistory(context iris.Context) {
+	if flag := checkSession(context); !flag {
+		return
+	}
 	c, err := config.New(wc.Ctx)
 	if err != nil {
-		context.WriteString(err.Error())
+		fmt.Printf("error when create new config: %v", err)
+		respWriter(context, nil, err)
 		return
 	}
 	wc.BeginTime = time.Now()
 	wc.Ictx = context
 
-	history.Delete(c.CacheDir, wc)
+	err = history.Delete(c.CacheDir, wc)
+	if err != nil {
+		respWriter(context, nil, err)
+	} else {
+		respWriter(context, "删除成功", nil)
+	}
 }
 
 func login(context iris.Context) {
@@ -157,11 +176,17 @@ func login(context iris.Context) {
 }
 
 func logout(context iris.Context) {
+	if flag := checkSession(context); !flag {
+		return
+	}
 	session := sess.Start(context)
 	session.Set("authenticated", false)
 }
 
 func userAdd(context iris.Context) {
+	if flag := checkSession(context); !flag {
+		return
+	}
 	c, err := config.New(wc.Ctx)
 	if err != nil {
 		context.WriteString(err.Error())
@@ -174,6 +199,9 @@ func userAdd(context iris.Context) {
 }
 
 func userDelete(context iris.Context) {
+	if flag := checkSession(context); !flag {
+		return
+	}
 	c, err := config.New(wc.Ctx)
 	if err != nil {
 		context.WriteString(err.Error())
@@ -186,6 +214,9 @@ func userDelete(context iris.Context) {
 }
 
 func userGet(context iris.Context) {
+	if flag := checkSession(context); !flag {
+		return
+	}
 	c, err := config.New(wc.Ctx)
 	if err != nil {
 		context.WriteString(err.Error())
@@ -198,7 +229,7 @@ func userGet(context iris.Context) {
 }
 
 // 验证会话
-func checkSession(context iris.Context) (bool, error) {
+func checkSession(context iris.Context) bool {
 	if auth, _ := sess.Start(context).GetBoolean("authenticated"); !auth {
 		res := configup.Response{
 			Status: configup.Codes["SUCCESS"],
@@ -214,9 +245,9 @@ func checkSession(context iris.Context) (bool, error) {
 		}
 
 		context.WriteString(string(jsonRes))
-		return false, nil
+		return false
 	}
-	return true, nil
+	return true
 }
 
 // 写入返回
