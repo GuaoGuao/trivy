@@ -10,8 +10,7 @@ import (
 	"github.com/aquasecurity/trivy/internal/artifact"
 	"github.com/aquasecurity/trivy/internal/artifact/config"
 	configup "github.com/aquasecurity/trivy/internal/config"
-	"github.com/aquasecurity/trivy/pkg/history"
-	"github.com/aquasecurity/trivy/pkg/user"
+	"github.com/aquasecurity/trivy/pkg/webservice"
 	"github.com/kataras/iris"
 	"github.com/kataras/iris/sessions"
 	"github.com/urfave/cli/v2"
@@ -21,6 +20,9 @@ var wc configup.WebContext
 var sess = sessions.New(sessions.Config{Cookie: "secret"})
 
 func Run(cliCtx *cli.Context) error {
+	// 初始化数据库连接
+	webservice.Init()
+
 	wc.Ctx = cliCtx
 	wc.Webapp = iris.New()
 	wc.Webapp.Use(Cors)
@@ -28,7 +30,8 @@ func Run(cliCtx *cli.Context) error {
 	wc.Webapp.Post("/scanner", typeHandler)
 	wc.Webapp.Get("/listimages", listimages)
 
-	wc.Webapp.Get("/history/get", getHistory)
+	wc.Webapp.Get("/history/getlist", getHistory)
+	wc.Webapp.Get("/history/getdetail", getHistoryDetail)
 	wc.Webapp.Post("/history/delete", deleteHistory)
 
 	wc.Webapp.Get("/user/login", login)
@@ -55,19 +58,26 @@ func Cors(ctx iris.Context) {
 }
 
 func typeHandler(context iris.Context) {
-	if flag := checkSession(context); !flag {
+	flag, userID := checkSession(context)
+	if !flag {
 		return
 	}
 	path := context.Path()
 	wc.Webapp.Logger().Info(path)
 	wc.BeginTime = time.Now()
 	wc.Ictx = context
-	//获取get请求所携带的参数
-	scanType := context.URLParam("type")
-	wc.Webapp.Logger().Info(scanType)
+	wc.UserID = userID
 
-	name := context.URLParam("name")
-	wc.Webapp.Logger().Info(name)
+	//获取post请求所携带的参数
+	type param struct {
+		Name string `json:"name"`
+		Type string `json:"type"`
+	}
+	var params param
+	if err := context.ReadJSON(&params); err != nil {
+		panic(err.Error())
+	}
+	wc.Type = params.Type
 
 	c, err := config.New(wc.Ctx)
 	if err != nil {
@@ -75,13 +85,14 @@ func typeHandler(context iris.Context) {
 		return
 	}
 
-	if scanType == "image" {
+	if params.Type == "image" {
 		// initialize config
 		if err = c.Init(true); err != nil {
 			context.WriteString("failed to initialize options: " + err.Error())
+			fmt.Printf("failed to initialize options: " + err.Error())
 			return
 		}
-		c.Target = name
+		c.Target = params.Name
 		c.ExitCode = 1
 
 		if c.Input != "" {
@@ -90,23 +101,34 @@ func typeHandler(context iris.Context) {
 		}
 
 		results, err := artifact.RunWeb(c, artifact.DockerScanner, wc)
-		respWriter(context, results, err)
+
+		if err != nil {
+			respWriter(context, "FAIL", err)
+			return
+		}
+		respWriter(context, "SUCCESS", results)
 	} else {
 		// initialize config
 		if err = c.Init(false); err != nil {
 			context.WriteString("failed to initialize options: " + err.Error())
+			fmt.Printf("failed to initialize options: " + err.Error())
 			return
 		}
 
-		c.Target = name
+		c.Target = params.Name
 		c.ExitCode = 1
 		results, err := artifact.RunWeb(c, artifact.RepositoryScanner, wc)
-		respWriter(context, results, err)
+
+		if err != nil {
+			respWriter(context, "FAIL", err)
+			return
+		}
+		respWriter(context, "SUCCESS", results)
 	}
 }
 
 func listimages(context iris.Context) {
-	if flag := checkSession(context); !flag {
+	if flag, _ := checkSession(context); !flag {
 		return
 	}
 	cmd := exec.Command("docker", "image", "list")
@@ -116,43 +138,59 @@ func listimages(context iris.Context) {
 
 	err := cmd.Run()
 
-	respWriter(context, out, err)
+	if err != nil {
+		respWriter(context, "FAIL", err)
+		return
+	}
+	respWriter(context, "SUCCESS", out)
 }
 
 func getHistory(context iris.Context) {
-	if flag := checkSession(context); !flag {
+	if flag, _ := checkSession(context); !flag {
 		return
-	}
-	c, err := config.New(wc.Ctx)
-	if err != nil {
-		fmt.Printf("err when create new config: %v", err)
-		respWriter(context, nil, err)
 	}
 	wc.BeginTime = time.Now()
 	wc.Ictx = context
 
-	results, err := history.Get(c.CacheDir, wc)
-	respWriter(context, results, err)
+	results, err := webservice.GetHis()
+	if err != nil {
+		respWriter(context, "FAIL", err)
+		return
+	}
+	respWriter(context, "SUCCESS", results)
 }
 
-func deleteHistory(context iris.Context) {
-	if flag := checkSession(context); !flag {
+func getHistoryDetail(context iris.Context) {
+	if flag, _ := checkSession(context); !flag {
 		return
 	}
 	c, err := config.New(wc.Ctx)
 	if err != nil {
 		fmt.Printf("error when create new config: %v", err)
-		respWriter(context, nil, err)
+		respWriter(context, "FAIL", err)
 		return
 	}
 	wc.BeginTime = time.Now()
 	wc.Ictx = context
 
-	err = history.Delete(c.CacheDir, wc)
+	result, err := webservice.GetHisDetail(c.CacheDir, context.URLParam("scanid"))
 	if err != nil {
-		respWriter(context, nil, err)
+		respWriter(context, "FAIL", err)
+		return
+	}
+	respWriter(context, "SUCCESS", result)
+}
+
+func deleteHistory(context iris.Context) {
+	if flag, _ := checkSession(context); !flag {
+		return
+	}
+
+	err := webservice.DeleteHis()
+	if err != nil {
+		respWriter(context, "FAIL", err)
 	} else {
-		respWriter(context, "删除成功", nil)
+		respWriter(context, "SUCCESS", "删除成功")
 	}
 }
 
@@ -161,32 +199,37 @@ func login(context iris.Context) {
 
 	c, err := config.New(wc.Ctx)
 	if err != nil {
-		context.WriteString(err.Error())
+		respWriter(context, "FAIL", err)
 		return
 	}
 	wc.BeginTime = time.Now()
 	wc.Ictx = context
 
-	flag := user.Login(c.CacheDir, wc)
-	if !flag {
+	userID, err := webservice.Login(c.CacheDir, wc)
+	if err != nil {
+		respWriter(context, "LOGINFAIL", err)
 		return
 	}
 
 	session.Set("authenticated", true)
+	session.Set("userId", userID)
+	respWriter(context, "SUCCESS", "登录成功")
 }
 
 func logout(context iris.Context) {
-	if flag := checkSession(context); !flag {
+	if flag, _ := checkSession(context); !flag {
 		return
 	}
 	session := sess.Start(context)
 	session.Set("authenticated", false)
+	respWriter(context, "SUCCESS", "登出成功")
 }
 
+//
 func userAdd(context iris.Context) {
-	if flag := checkSession(context); !flag {
-		return
-	}
+	// if flag := checkSession(context); !flag {
+	// 	return
+	// }
 	c, err := config.New(wc.Ctx)
 	if err != nil {
 		context.WriteString(err.Error())
@@ -195,11 +238,12 @@ func userAdd(context iris.Context) {
 	wc.BeginTime = time.Now()
 	wc.Ictx = context
 
-	user.Add(c.CacheDir, wc)
+	webservice.AddUser(c.CacheDir, wc)
+	respWriter(context, "SUCCESS", "添加成功")
 }
 
 func userDelete(context iris.Context) {
-	if flag := checkSession(context); !flag {
+	if flag, _ := checkSession(context); !flag {
 		return
 	}
 	c, err := config.New(wc.Ctx)
@@ -210,11 +254,12 @@ func userDelete(context iris.Context) {
 	wc.BeginTime = time.Now()
 	wc.Ictx = context
 
-	user.Delete(c.CacheDir, wc)
+	webservice.DeleteUser(c.CacheDir, wc)
+	respWriter(context, "SUCCESS", "删除成功")
 }
 
 func userGet(context iris.Context) {
-	if flag := checkSession(context); !flag {
+	if flag, _ := checkSession(context); !flag {
 		return
 	}
 	c, err := config.New(wc.Ctx)
@@ -225,50 +270,32 @@ func userGet(context iris.Context) {
 	wc.BeginTime = time.Now()
 	wc.Ictx = context
 
-	user.Get(c.CacheDir, wc)
+	webservice.GetUser(c.CacheDir, wc)
 }
 
 // 验证会话
-func checkSession(context iris.Context) bool {
-	if auth, _ := sess.Start(context).GetBoolean("authenticated"); !auth {
-		res := configup.Response{
-			Status: configup.Codes["SUCCESS"],
-			Msg:    "未登录，请登录后再试",
-		}
-
-		jsonRes, err := json.Marshal(res)
-		if err != nil {
-			fmt.Printf("err when marshal res json: %v", err)
-			res.Status = configup.Codes["JSONERROR"]
-			res.Msg = "JSON 转换错误"
-			res.Data = err
-		}
-
-		context.WriteString(string(jsonRes))
-		return false
-	}
-	return true
+func checkSession(context iris.Context) (bool, string) {
+	// if auth, _ := sess.Start(context).GetBoolean("authenticated"); !auth {
+	// 	respWriter(context, "UNLOGIN", nil)
+	// 	return false, ""
+	// }
+	return true, "123456789"
+	// return true, sess.Start(context).GetString("userID")
 }
 
 // 写入返回
-func respWriter(context iris.Context, data interface{}, err error) {
+func respWriter(context iris.Context, status string, data interface{}) {
 	res := configup.Response{
-		Status: "000",
-		Msg:    "Success",
+		Status: configup.Codes[status],
+		Msg:    configup.Text[status],
 		Data:   data,
-	}
-
-	if err != nil {
-		res.Status = configup.Codes["FAIL"]
-		res.Msg = "服务器异常，请稍后重试"
-		res.Data = err
 	}
 
 	jsonRes, err := json.Marshal(res)
 	if err != nil {
 		fmt.Printf("err when marshal res json: %v", err)
-		res.Status = configup.Codes["JSONERROR"]
-		res.Msg = "JSON 转换错误"
+		res.Status = configup.Codes["FAIL"]
+		res.Msg = configup.Text["FAIL"]
 		res.Data = err
 	}
 

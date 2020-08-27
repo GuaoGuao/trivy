@@ -13,12 +13,12 @@ import (
 	"github.com/aquasecurity/trivy/internal/artifact/config"
 	configup "github.com/aquasecurity/trivy/internal/config"
 	"github.com/aquasecurity/trivy/internal/operation"
-	"github.com/aquasecurity/trivy/pkg/history"
 	"github.com/aquasecurity/trivy/pkg/log"
 	"github.com/aquasecurity/trivy/pkg/report"
 	"github.com/aquasecurity/trivy/pkg/scanner"
 	"github.com/aquasecurity/trivy/pkg/types"
 	"github.com/aquasecurity/trivy/pkg/utils"
+	"github.com/aquasecurity/trivy/pkg/webservice"
 )
 
 type InitializeScanner func(context.Context, string, cache.ArtifactCache, cache.LocalArtifactCache, time.Duration) (
@@ -31,7 +31,7 @@ func RunWeb(c config.Config, initializeScanner InitializeScanner, wc configup.We
 		return nil, err
 	}
 
-	history.Save(c.CacheDir, results, wc)
+	webservice.SaveHis(results, wc, c)
 
 	if err = report.WriteResults(c.Format, c.Output, results, c.Template, c.Light); err != nil {
 		return nil, xerrors.Errorf("unable to write results: %w", err)

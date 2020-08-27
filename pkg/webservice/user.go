@@ -1,12 +1,13 @@
-package user
+package webservice
 
 import (
+	"errors"
+	"fmt"
 	"time"
 
 	"encoding/json"
 
 	"github.com/aquasecurity/trivy/internal/config"
-	"github.com/aquasecurity/trivy/pkg/log"
 	"github.com/boltdb/bolt"
 	uuid "github.com/iris-contrib/go.uuid"
 
@@ -14,7 +15,7 @@ import (
 )
 
 type user struct {
-	Id         []byte
+	Id         string
 	Username   string
 	Password   string
 	Type       string
@@ -27,17 +28,17 @@ const (
 	userLineBucket = "line"
 )
 
-func Login(cacheDir string, wc config.WebContext) bool {
-	res := false
+func Login(cacheDir string, wc config.WebContext) (string, error) {
 	dbPath := db.Path(cacheDir)
 	db, err := bolt.Open(dbPath, 0666, nil)
 	if err != nil {
-		log.Logger.Debug("exception on Open db: %s", err)
+		fmt.Printf("failed to open db: " + err.Error())
+		return "", err
 	}
 	defer db.Close()
 
 	var u = user{
-		Id:       []byte(wc.Ictx.URLParam("id")),
+		Id:       string(wc.Ictx.URLParam("id")),
 		Username: wc.Ictx.URLParam("username"),
 	}
 
@@ -47,22 +48,25 @@ func Login(cacheDir string, wc config.WebContext) bool {
 		lines, _ := top.CreateBucketIfNotExists([]byte(userLineBucket))
 		passwordInput := wc.Ictx.URLParam("password")
 
-		u.getUserFromName(heads, lines)
+		err = u.getUserFromName(heads, lines)
+		if err != nil {
+			return err
+		}
 
-		if passwordInput == u.Password {
-			res = true
+		if passwordInput != u.Password {
+			err = errors.New("密码错误")
 		}
 		return nil
 	})
 
-	return res
+	return "", err
 }
 
-func Add(cacheDir string, wc config.WebContext) error {
+func AddUser(cacheDir string, wc config.WebContext) error {
 	dbPath := db.Path(cacheDir)
 	db, err := bolt.Open(dbPath, 0666, nil)
 	if err != nil {
-		log.Logger.Debug("exception on Open db: %s", err)
+		fmt.Printf("exception on Open db: %s", err)
 	}
 	defer db.Close()
 
@@ -73,7 +77,7 @@ func Add(cacheDir string, wc config.WebContext) error {
 	wc.Webapp.Logger().Info(password)
 	id, _ := uuid.NewV4()
 	var user = user{
-		Id:         id.Bytes(),
+		Id:         id.String(),
 		Username:   username,
 		Password:   password,
 		Type:       "super",
@@ -84,9 +88,9 @@ func Add(cacheDir string, wc config.WebContext) error {
 		top, _ := tx.CreateBucketIfNotExists([]byte(userBucket))
 		heads, _ := top.CreateBucketIfNotExists([]byte(userHeadBucket))
 		lines, _ := top.CreateBucketIfNotExists([]byte(userLineBucket))
-		detail, _ := lines.CreateBucketIfNotExists(id.Bytes())
-		putstring(heads, user.Username, string(user.Id))
-		putstring(detail, "id", string(user.Id))
+		detail, _ := lines.CreateBucketIfNotExists([]byte(user.Id))
+		putstring(heads, user.Username, user.Id)
+		putstring(detail, "id", user.Id)
 		putstring(detail, "username", user.Username)
 		putstring(detail, "password", user.Password)
 		putstring(detail, "type", user.Type)
@@ -97,16 +101,16 @@ func Add(cacheDir string, wc config.WebContext) error {
 	return nil
 }
 
-func Delete(cacheDir string, wc config.WebContext) {
+func DeleteUser(cacheDir string, wc config.WebContext) {
 	dbPath := db.Path(cacheDir)
 	db, err := bolt.Open(dbPath, 0666, nil)
 	if err != nil {
-		log.Logger.Debug("exception on Open db: %s", err)
+		fmt.Printf("exception on Open db: %s", err)
 	}
 	defer db.Close()
 
 	var u = user{
-		Id:       []byte(wc.Ictx.URLParam("id")),
+		Id:       string(wc.Ictx.URLParam("id")),
 		Username: wc.Ictx.URLParam("username"),
 	}
 
@@ -125,11 +129,11 @@ func Delete(cacheDir string, wc config.WebContext) {
 	})
 }
 
-func Get(cacheDir string, wc config.WebContext) {
+func GetUser(cacheDir string, wc config.WebContext) {
 	dbPath := db.Path(cacheDir)
 	db, err := bolt.Open(dbPath, 0666, nil)
 	if err != nil {
-		log.Logger.Debug("exception on Open db: %s", err)
+		fmt.Printf("exception on Open db: %s", err)
 	}
 	defer db.Close()
 
@@ -141,7 +145,7 @@ func Get(cacheDir string, wc config.WebContext) {
 		for k, _ := c.First(); k != nil; k, _ = c.Next() {
 			detail := lines.Bucket([]byte(k))
 			var u = user{
-				Id:         detail.Get([]byte("id")),
+				Id:         string(detail.Get([]byte("id"))),
 				Username:   string(detail.Get([]byte("username"))),
 				Password:   string(detail.Get([]byte("password"))),
 				Type:       string(detail.Get([]byte("type"))),
@@ -155,17 +159,23 @@ func Get(cacheDir string, wc config.WebContext) {
 	})
 }
 
-func (u *user) getUserFromName(heads *bolt.Bucket, lines *bolt.Bucket) {
+func (u *user) getUserFromName(heads *bolt.Bucket, lines *bolt.Bucket) error {
 	// 默认从id取，没有id就先从头表取
 	if len(u.Id) == 0 {
 		id := heads.Get([]byte(u.Username))
-		u.Id = id
+		if id == nil {
+			fmt.Printf("数据库中没有这个账号")
+			return errors.New("账户或密码错误，请检查")
+		}
+		u.Id = string(id)
 	}
-	detail := lines.Bucket(u.Id)
+	detail := lines.Bucket([]byte(u.Id))
 	u.Username = string(detail.Get([]byte("username")))
 	u.Password = string(detail.Get([]byte("password")))
 	u.Type = string(detail.Get([]byte("type")))
 	u.Createtime = string(detail.Get([]byte("createtime")))
+
+	return nil
 }
 
 func putstring(bucket *bolt.Bucket, key string, value string) {
