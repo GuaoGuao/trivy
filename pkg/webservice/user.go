@@ -1,17 +1,16 @@
 package webservice
 
 import (
+	"crypto/md5"
 	"errors"
 	"fmt"
 	"time"
 
-	"encoding/json"
+	"encoding/hex"
 
 	"github.com/aquasecurity/trivy/internal/config"
 	"github.com/boltdb/bolt"
 	uuid "github.com/iris-contrib/go.uuid"
-
-	"github.com/aquasecurity/trivy-db/pkg/db"
 )
 
 type user struct {
@@ -29,134 +28,96 @@ const (
 )
 
 func Login(cacheDir string, wc config.WebContext) (string, error) {
-	dbPath := db.Path(cacheDir)
-	db, err := bolt.Open(dbPath, 0666, nil)
+	userName := wc.Ictx.URLParam("username")
+	passWord := wc.Ictx.URLParam("password")
+
+	row := MysqlDb.QueryRow("select userid, salt, password from user where username=?", userName)
+	var userId, salt, passwordR string
+	row.Scan(&userId, &salt, &passwordR)
+
+	myMd5 := md5.New()
+	myMd5.Write([]byte(passWord))
+	fmt.Println([]byte(passWord))
+	myMd5.Write([]byte(salt))
+	fmt.Println([]byte(salt))
+	passWordMd5 := myMd5.Sum(nil)
+	passWord = hex.EncodeToString(passWordMd5)
+
+	if passWord != passwordR {
+		return "", errors.New("密码有误，请确认后重试")
+	}
+
+	// 更新登录时间
+	_, err := MysqlDb.Exec("update user set logintime = ? where userid = ?", time.Now(), userId)
 	if err != nil {
-		fmt.Printf("failed to open db: " + err.Error())
+		fmt.Println("error when update logintime:  ", err)
 		return "", err
 	}
-	defer db.Close()
 
-	var u = user{
-		Id:       string(wc.Ictx.URLParam("id")),
-		Username: wc.Ictx.URLParam("username"),
-	}
-
-	db.Update(func(tx *bolt.Tx) error {
-		top, _ := tx.CreateBucketIfNotExists([]byte(userBucket))
-		heads, _ := top.CreateBucketIfNotExists([]byte(userHeadBucket))
-		lines, _ := top.CreateBucketIfNotExists([]byte(userLineBucket))
-		passwordInput := wc.Ictx.URLParam("password")
-
-		err = u.getUserFromName(heads, lines)
-		if err != nil {
-			return err
-		}
-
-		if passwordInput != u.Password {
-			err = errors.New("密码错误")
-		}
-		return nil
-	})
-
-	return "", err
+	return userId, nil
 }
 
 func AddUser(cacheDir string, wc config.WebContext) error {
-	dbPath := db.Path(cacheDir)
-	db, err := bolt.Open(dbPath, 0666, nil)
+	userID, _ := uuid.NewV4()
+	userName := wc.Ictx.URLParam("username")
+	passWord := wc.Ictx.URLParam("password")
+	salt, _ := uuid.NewV4()
+	createTime := time.Now()
+	loginTime := time.Now()
+	userType := wc.Ictx.URLParam("usertype")
+
+	// md5 加密
+	myMd5 := md5.New()
+	saltString := hex.EncodeToString(salt.Bytes())
+	myMd5.Write([]byte(passWord))
+	fmt.Println([]byte(passWord))
+	myMd5.Write([]byte(saltString))
+	fmt.Println([]byte(saltString))
+	passWordMd5 := myMd5.Sum(nil)
+	passWord = hex.EncodeToString(passWordMd5)
+
+	_, err := MysqlDb.Exec("insert into user (userid, username, password, salt, createtime, logintime, usertype) values (?,?,?,?,?,?,?)",
+		userID, userName, passWord, saltString, createTime, loginTime, userType)
+
 	if err != nil {
-		fmt.Printf("exception on Open db: %s", err)
+		fmt.Printf("exception on insert user db: %s", err)
+		return err
 	}
-	defer db.Close()
+	return nil
+}
 
-	//获取get请求所携带的参数
-	username := wc.Ictx.URLParam("username")
-	wc.Webapp.Logger().Info(username)
-	password := wc.Ictx.URLParam("password")
-	wc.Webapp.Logger().Info(password)
-	id, _ := uuid.NewV4()
-	var user = user{
-		Id:         id.String(),
-		Username:   username,
-		Password:   password,
-		Type:       "super",
-		Createtime: time.Now().Format("20060102150405"),
+func DeleteUser(cacheDir string, wc config.WebContext) error {
+	userId := wc.Ictx.URLParam("userid")
+	_, err := MysqlDb.Exec("delete from user where userid = ?", userId)
+
+	if err != nil {
+		fmt.Println("err when deleteuser", err)
+		return err
 	}
-
-	db.Update(func(tx *bolt.Tx) error {
-		top, _ := tx.CreateBucketIfNotExists([]byte(userBucket))
-		heads, _ := top.CreateBucketIfNotExists([]byte(userHeadBucket))
-		lines, _ := top.CreateBucketIfNotExists([]byte(userLineBucket))
-		detail, _ := lines.CreateBucketIfNotExists([]byte(user.Id))
-		putstring(heads, user.Username, user.Id)
-		putstring(detail, "id", user.Id)
-		putstring(detail, "username", user.Username)
-		putstring(detail, "password", user.Password)
-		putstring(detail, "type", user.Type)
-		putstring(detail, "createtime", user.Createtime)
-		return nil
-	})
 
 	return nil
 }
 
-func DeleteUser(cacheDir string, wc config.WebContext) {
-	dbPath := db.Path(cacheDir)
-	db, err := bolt.Open(dbPath, 0666, nil)
+func GetUsers(cacheDir string, wc config.WebContext) (interface{}, error) {
+	rows, err := MysqlDb.Query("SELECT userid, username, createtime, logintime, usertype from user")
 	if err != nil {
-		fmt.Printf("exception on Open db: %s", err)
+		fmt.Println("error when getuser: ", err)
+		return nil, err
 	}
-	defer db.Close()
-
-	var u = user{
-		Id:       string(wc.Ictx.URLParam("id")),
-		Username: wc.Ictx.URLParam("username"),
+	type user struct {
+		Userid     string
+		Username   string
+		CreateTime string
+		Logintime  string
+		Usertype   string
 	}
-
-	db.Update(func(tx *bolt.Tx) error {
-		top, _ := tx.CreateBucketIfNotExists([]byte(userBucket))
-		heads, _ := top.CreateBucketIfNotExists([]byte(userHeadBucket))
-		lines, _ := top.CreateBucketIfNotExists([]byte(userLineBucket))
-		u.getUserFromName(heads, lines)
-		err = heads.DeleteBucket([]byte(u.Username))
-		err = lines.DeleteBucket([]byte(u.Id))
-		if err != nil {
-			wc.Ictx.WriteString("err when Delete")
-			return err
-		}
-		return nil
-	})
-}
-
-func GetUser(cacheDir string, wc config.WebContext) {
-	dbPath := db.Path(cacheDir)
-	db, err := bolt.Open(dbPath, 0666, nil)
-	if err != nil {
-		fmt.Printf("exception on Open db: %s", err)
+	users := []user{}
+	for rows.Next() {
+		var auser user
+		rows.Scan(&auser.Userid, &auser.Username, &auser.CreateTime, &auser.Logintime, &auser.Usertype)
+		users = append(users, auser)
 	}
-	defer db.Close()
-
-	db.View(func(tx *bolt.Tx) error {
-		top, _ := tx.CreateBucketIfNotExists([]byte(userBucket))
-		lines, _ := top.CreateBucketIfNotExists([]byte(userLineBucket))
-
-		c := lines.Cursor()
-		for k, _ := c.First(); k != nil; k, _ = c.Next() {
-			detail := lines.Bucket([]byte(k))
-			var u = user{
-				Id:         string(detail.Get([]byte("id"))),
-				Username:   string(detail.Get([]byte("username"))),
-				Password:   string(detail.Get([]byte("password"))),
-				Type:       string(detail.Get([]byte("type"))),
-				Createtime: string(detail.Get([]byte("createtime"))),
-			}
-			outputs, _ := json.Marshal(u)
-			wc.Ictx.WriteString(string(outputs))
-		}
-
-		return nil
-	})
+	return users, nil
 }
 
 func (u *user) getUserFromName(heads *bolt.Bucket, lines *bolt.Bucket) error {

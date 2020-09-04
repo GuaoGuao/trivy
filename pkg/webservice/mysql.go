@@ -49,9 +49,3 @@ func Init() {
 	}
 
 }
-
-// 插入 History 头表
-func insertHistory() error {
-
-	return nil
-}

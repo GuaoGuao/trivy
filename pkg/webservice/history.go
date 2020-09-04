@@ -3,6 +3,7 @@ package webservice
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 
 	typesDetail "github.com/aquasecurity/trivy-db/pkg/types"
@@ -60,21 +61,24 @@ func SaveHis(results report.Results, wc configup.WebContext, c config.Config) er
 
 	// 插入行表
 	sqlStr := "insert into historyline(scanid, targetfile, type, vulnerabilityid, pkgname, installedversion, fixedversion, digest, diffid, severitysource) values"
+	sqlStrData := ""
 	sqlVal := []interface{}{}
 
 	for i, resFile := range results {
 		for j, resVul := range resFile.Vulnerabilities {
 			if i != 0 || j != 0 {
-				sqlStr += ","
+				sqlStrData += ","
 			}
-			sqlStr += "(?,?,?,?,?,?,?,?,?,?)"
+			sqlStrData += "(?,?,?,?,?,?,?,?,?,?)"
 			sqlVal = append(sqlVal, id.String(), resFile.Target, resFile.Type, resVul.VulnerabilityID, resVul.PkgName, resVul.InstalledVersion,
 				resVul.FixedVersion, resVul.Layer.Digest, resVul.Layer.DiffID, resVul.SeveritySource)
 		}
 	}
+	if sqlStrData == "" {
+		return nil
+	}
+	sqlStr += sqlStrData
 	stmt, _ := MysqlDb.Prepare(sqlStr)
-	fmt.Println(sqlStr)
-	fmt.Println(sqlVal)
 	_, err = stmt.Exec(sqlVal...)
 	if err != nil {
 		fmt.Println("batch insert err:  ", err)
@@ -85,12 +89,14 @@ func SaveHis(results report.Results, wc configup.WebContext, c config.Config) er
 }
 
 // GetHis 获取扫描历史列表
-func GetHis() (interface{}, error) {
-	rows, err := MysqlDb.Query("select h.scanid, h.type, h.time, h.target, h.userid, u.username from history h left join user u on h.userid = u.userid")
+func GetHis(index string, size string) (interface{}, string, error) {
+	indexInt, _ := strconv.Atoi(index)
+	indexInt = (indexInt - 1) * 10
+	rows, err := MysqlDb.Query("select h.scanid, h.type, h.time, h.target, h.userid, u.username from history h left join user u on h.userid = u.userid ORDER BY time desc LIMIT ?,?", indexInt, size)
 	historydatas := []scanHistory{}
 	if err != nil {
 		fmt.Println(err)
-		return nil, err
+		return nil, "", err
 	}
 	for rows.Next() {
 		var historydata scanHistory
@@ -103,7 +109,12 @@ func GetHis() (interface{}, error) {
 		}
 		historydatas = append(historydatas, historydata)
 	}
-	return historydatas, nil
+
+	num := "0"
+	numRow := MysqlDb.QueryRow("select count(*) count from history")
+	numRow.Scan(&num)
+
+	return historydatas, num, nil
 }
 
 // GetHisDetail 获取历史扫描详情
@@ -167,8 +178,8 @@ func GetHisDetail(cacheDir string, scanid string) (interface{}, error) {
 }
 
 // DeleteHis 删除扫描历史
-func DeleteHis() error {
-	_, err := MysqlDb.Query("delete from history where 1=1")
-	_, err = MysqlDb.Query("delete from historyline where 1=1")
+func DeleteHis(scanid string) error {
+	_, err := MysqlDb.Exec("delete from history where scanid=?", scanid)
+	_, err = MysqlDb.Exec("delete from historyline where scanid=?", scanid)
 	return err
 }

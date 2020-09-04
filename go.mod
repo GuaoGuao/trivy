@@ -39,6 +39,7 @@ require (
 	github.com/mattn/go-colorable v0.1.4 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.3 // indirect
 	github.com/olekukonko/tablewriter v0.0.2-0.20190607075207-195002e6e56a
+	github.com/pkg/errors v0.9.1
 	github.com/ryanuber/columnize v2.1.0+incompatible // indirect
 	github.com/spf13/afero v1.2.2
 	github.com/stretchr/testify v1.6.1

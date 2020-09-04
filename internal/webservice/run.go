@@ -19,6 +19,7 @@ import (
 var wc configup.WebContext
 var sess = sessions.New(sessions.Config{Cookie: "secret"})
 
+// Run web 服务
 func Run(cliCtx *cli.Context) error {
 	// 初始化数据库连接
 	webservice.Init()
@@ -32,7 +33,7 @@ func Run(cliCtx *cli.Context) error {
 
 	wc.Webapp.Get("/history/getlist", getHistory)
 	wc.Webapp.Get("/history/getdetail", getHistoryDetail)
-	wc.Webapp.Post("/history/delete", deleteHistory)
+	wc.Webapp.Get("/history/delete", deleteHistory)
 
 	wc.Webapp.Get("/user/login", login)
 	wc.Webapp.Get("/user/logout", logout)
@@ -45,7 +46,7 @@ func Run(cliCtx *cli.Context) error {
 	return nil
 }
 
-// Cors
+// Cors 处理跨域
 func Cors(ctx iris.Context) {
 	ctx.Header("Access-Control-Allow-Origin", "*")
 	if ctx.Request().Method == "OPTIONS" {
@@ -152,12 +153,22 @@ func getHistory(context iris.Context) {
 	wc.BeginTime = time.Now()
 	wc.Ictx = context
 
-	results, err := webservice.GetHis()
+	pageIndex := context.URLParam("pageIndex")
+	pageSize := context.URLParam("pageSize")
+	results, pageTotal, err := webservice.GetHis(pageIndex, pageSize)
 	if err != nil {
 		respWriter(context, "FAIL", err)
 		return
 	}
-	respWriter(context, "SUCCESS", results)
+	type res struct {
+		Results   interface{}
+		PageTotal string
+	}
+	var result res
+	result.Results = results
+	result.PageTotal = pageTotal
+
+	respWriter(context, "SUCCESS", result)
 }
 
 func getHistoryDetail(context iris.Context) {
@@ -173,7 +184,7 @@ func getHistoryDetail(context iris.Context) {
 	wc.BeginTime = time.Now()
 	wc.Ictx = context
 
-	result, err := webservice.GetHisDetail(c.CacheDir, context.URLParam("scanid"))
+	result, err := webservice.GetHisDetail(c.CacheDir, context.URLParam("scanId"))
 	if err != nil {
 		respWriter(context, "FAIL", err)
 		return
@@ -186,7 +197,8 @@ func deleteHistory(context iris.Context) {
 		return
 	}
 
-	err := webservice.DeleteHis()
+	scanID := context.URLParam("scanId")
+	err := webservice.DeleteHis(scanID)
 	if err != nil {
 		respWriter(context, "FAIL", err)
 	} else {
@@ -238,7 +250,12 @@ func userAdd(context iris.Context) {
 	wc.BeginTime = time.Now()
 	wc.Ictx = context
 
-	webservice.AddUser(c.CacheDir, wc)
+	err = webservice.AddUser(c.CacheDir, wc)
+	if err != nil {
+		respWriter(context, "FAIL", err)
+		return
+	}
+
 	respWriter(context, "SUCCESS", "添加成功")
 }
 
@@ -254,7 +271,12 @@ func userDelete(context iris.Context) {
 	wc.BeginTime = time.Now()
 	wc.Ictx = context
 
-	webservice.DeleteUser(c.CacheDir, wc)
+	err = webservice.DeleteUser(c.CacheDir, wc)
+	if err != nil {
+		respWriter(context, "FAIL", err)
+		return
+	}
+
 	respWriter(context, "SUCCESS", "删除成功")
 }
 
@@ -270,7 +292,11 @@ func userGet(context iris.Context) {
 	wc.BeginTime = time.Now()
 	wc.Ictx = context
 
-	webservice.GetUser(c.CacheDir, wc)
+	results, err := webservice.GetUsers(c.CacheDir, wc)
+	if err != nil {
+		respWriter(context, "FAIL", err)
+	}
+	respWriter(context, "SUCCESS", results)
 }
 
 // 验证会话

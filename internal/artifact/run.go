@@ -19,6 +19,7 @@ import (
 	"github.com/aquasecurity/trivy/pkg/types"
 	"github.com/aquasecurity/trivy/pkg/utils"
 	"github.com/aquasecurity/trivy/pkg/webservice"
+	"github.com/pkg/errors"
 )
 
 type InitializeScanner func(context.Context, string, cache.ArtifactCache, cache.LocalArtifactCache, time.Duration) (
@@ -29,6 +30,9 @@ func RunWeb(c config.Config, initializeScanner InitializeScanner, wc configup.We
 	results, err := subrun(c, initializeScanner)
 	if err != nil {
 		return nil, err
+	}
+	if results == nil {
+		return nil, errors.Errorf("没有检测到需要扫描的包")
 	}
 
 	webservice.SaveHis(results, wc, c)
