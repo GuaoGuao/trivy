@@ -59,6 +59,7 @@ func Cors(ctx iris.Context) {
 }
 
 func typeHandler(context iris.Context) {
+	fmt.Println("来了老弟")
 	flag, userID := checkSession(context)
 	if !flag {
 		return
@@ -301,12 +302,12 @@ func userGet(context iris.Context) {
 
 // 验证会话
 func checkSession(context iris.Context) (bool, string) {
-	// if auth, _ := sess.Start(context).GetBoolean("authenticated"); !auth {
-	// 	respWriter(context, "UNLOGIN", nil)
-	// 	return false, ""
-	// }
-	return true, "123456789"
-	// return true, sess.Start(context).GetString("userID")
+	if auth, _ := sess.Start(context).GetBoolean("authenticated"); !auth {
+		respWriter(context, "UNLOGIN", nil)
+		return false, ""
+	}
+	// return true, "123456789"
+	return true, sess.Start(context).GetString("userID")
 }
 
 // 写入返回
