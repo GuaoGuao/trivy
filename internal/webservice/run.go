@@ -2,6 +2,7 @@ package webservice
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os/exec"
@@ -145,6 +146,7 @@ func listimages(context iris.Context) {
 	fmt.Println(out)
 	err := cmd.Run()
 	fmt.Println(out)
+	fmt.Println(hex.EncodeToString(out.Bytes()))
 
 	if err != nil {
 		respWriter(context, "FAIL", err)
