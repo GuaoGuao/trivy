@@ -144,6 +144,7 @@ func listimages(context iris.Context) {
 
 	fmt.Println(out)
 	err := cmd.Run()
+	fmt.Println(out)
 
 	if err != nil {
 		respWriter(context, "FAIL", err)
