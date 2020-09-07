@@ -153,7 +153,7 @@ func listimages(context iris.Context) {
 		respWriter(context, "FAIL", err)
 		return
 	}
-	respWriter(context, "SUCCESS", out)
+	respWriter(context, "SUCCESS", out.String())
 }
 
 func getHistory(context iris.Context) {
