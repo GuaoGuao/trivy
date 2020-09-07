@@ -142,6 +142,7 @@ func listimages(context iris.Context) {
 	var out bytes.Buffer
 	cmd.Stdout = &out
 
+	fmt.Println(out)
 	err := cmd.Run()
 
 	if err != nil {
