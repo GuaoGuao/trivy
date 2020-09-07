@@ -4,12 +4,12 @@ import (
 	"crypto/md5"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"encoding/hex"
 
 	"github.com/aquasecurity/trivy/internal/config"
-	"github.com/boltdb/bolt"
 	uuid "github.com/iris-contrib/go.uuid"
 )
 
@@ -37,9 +37,7 @@ func Login(cacheDir string, wc config.WebContext) (string, error) {
 
 	myMd5 := md5.New()
 	myMd5.Write([]byte(passWord))
-	fmt.Println([]byte(passWord))
 	myMd5.Write([]byte(salt))
-	fmt.Println([]byte(salt))
 	passWordMd5 := myMd5.Sum(nil)
 	passWord = hex.EncodeToString(passWordMd5)
 
@@ -57,22 +55,20 @@ func Login(cacheDir string, wc config.WebContext) (string, error) {
 	return userId, nil
 }
 
-func AddUser(cacheDir string, wc config.WebContext) error {
+func AddUser(wc config.WebContext) error {
 	userID, _ := uuid.NewV4()
-	userName := wc.Ictx.URLParam("username")
+	userName := wc.Ictx.URLParam("name")
 	passWord := wc.Ictx.URLParam("password")
 	salt, _ := uuid.NewV4()
 	createTime := time.Now()
 	loginTime := time.Now()
-	userType := wc.Ictx.URLParam("usertype")
+	userType := wc.Ictx.URLParam("type")
 
 	// md5 加密
 	myMd5 := md5.New()
 	saltString := hex.EncodeToString(salt.Bytes())
 	myMd5.Write([]byte(passWord))
-	fmt.Println([]byte(passWord))
 	myMd5.Write([]byte(saltString))
-	fmt.Println([]byte(saltString))
 	passWordMd5 := myMd5.Sum(nil)
 	passWord = hex.EncodeToString(passWordMd5)
 
@@ -86,8 +82,7 @@ func AddUser(cacheDir string, wc config.WebContext) error {
 	return nil
 }
 
-func DeleteUser(cacheDir string, wc config.WebContext) error {
-	userId := wc.Ictx.URLParam("userid")
+func DeleteUser(userId string) error {
 	_, err := MysqlDb.Exec("delete from user where userid = ?", userId)
 
 	if err != nil {
@@ -98,11 +93,14 @@ func DeleteUser(cacheDir string, wc config.WebContext) error {
 	return nil
 }
 
-func GetUsers(cacheDir string, wc config.WebContext) (interface{}, error) {
-	rows, err := MysqlDb.Query("SELECT userid, username, createtime, logintime, usertype from user")
+func GetUsers(index string, size string) (interface{}, string, error) {
+	indexInt, _ := strconv.Atoi(index)
+	sizeInt, _ := strconv.Atoi(size)
+	indexInt = (indexInt - 1) * sizeInt
+	rows, err := MysqlDb.Query("SELECT userid, username, createtime, logintime, usertype from user ORDER BY logintime desc LIMIT ?, ?", indexInt, sizeInt)
 	if err != nil {
 		fmt.Println("error when getuser: ", err)
-		return nil, err
+		return nil, "", err
 	}
 	type user struct {
 		Userid     string
@@ -117,28 +115,10 @@ func GetUsers(cacheDir string, wc config.WebContext) (interface{}, error) {
 		rows.Scan(&auser.Userid, &auser.Username, &auser.CreateTime, &auser.Logintime, &auser.Usertype)
 		users = append(users, auser)
 	}
-	return users, nil
-}
 
-func (u *user) getUserFromName(heads *bolt.Bucket, lines *bolt.Bucket) error {
-	// 默认从id取，没有id就先从头表取
-	if len(u.Id) == 0 {
-		id := heads.Get([]byte(u.Username))
-		if id == nil {
-			fmt.Printf("数据库中没有这个账号")
-			return errors.New("账户或密码错误，请检查")
-		}
-		u.Id = string(id)
-	}
-	detail := lines.Bucket([]byte(u.Id))
-	u.Username = string(detail.Get([]byte("username")))
-	u.Password = string(detail.Get([]byte("password")))
-	u.Type = string(detail.Get([]byte("type")))
-	u.Createtime = string(detail.Get([]byte("createtime")))
+	num := "0"
+	numRow := MysqlDb.QueryRow("SELECT count(*) count from user")
+	numRow.Scan(&num)
 
-	return nil
-}
-
-func putstring(bucket *bolt.Bucket, key string, value string) {
-	bucket.Put([]byte(key), []byte(value))
+	return users, num, nil
 }

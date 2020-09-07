@@ -16,6 +16,11 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+type pageRes struct {
+	Results   interface{}
+	PageTotal string
+}
+
 var wc configup.WebContext
 var sess = sessions.New(sessions.Config{Cookie: "secret"})
 
@@ -37,9 +42,9 @@ func Run(cliCtx *cli.Context) error {
 
 	wc.Webapp.Get("/user/login", login)
 	wc.Webapp.Get("/user/logout", logout)
+	wc.Webapp.Get("/user/list", userList)
 	wc.Webapp.Get("/user/add", userAdd)
 	wc.Webapp.Get("/user/delete", userDelete)
-	wc.Webapp.Get("/user/get", userGet)
 
 	wc.Webapp.Run(iris.Addr(":9327"), iris.WithoutServerError(iris.ErrServerClosed))
 
@@ -59,7 +64,6 @@ func Cors(ctx iris.Context) {
 }
 
 func typeHandler(context iris.Context) {
-	fmt.Println("来了老弟")
 	flag, userID := checkSession(context)
 	if !flag {
 		return
@@ -161,11 +165,7 @@ func getHistory(context iris.Context) {
 		respWriter(context, "FAIL", err)
 		return
 	}
-	type res struct {
-		Results   interface{}
-		PageTotal string
-	}
-	var result res
+	var result pageRes
 	result.Results = results
 	result.PageTotal = pageTotal
 
@@ -238,20 +238,35 @@ func logout(context iris.Context) {
 	respWriter(context, "SUCCESS", "登出成功")
 }
 
-//
-func userAdd(context iris.Context) {
-	// if flag := checkSession(context); !flag {
-	// 	return
-	// }
-	c, err := config.New(wc.Ctx)
-	if err != nil {
-		context.WriteString(err.Error())
+func userList(context iris.Context) {
+	if flag, _ := checkSession(context); !flag {
 		return
 	}
 	wc.BeginTime = time.Now()
 	wc.Ictx = context
 
-	err = webservice.AddUser(c.CacheDir, wc)
+	pageIndex := context.URLParam("pageIndex")
+	pageSize := context.URLParam("pageSize")
+	results, pageTotal, err := webservice.GetUsers(pageIndex, pageSize)
+	if err != nil {
+		respWriter(context, "FAIL", err)
+	}
+
+	var result pageRes
+	result.Results = results
+	result.PageTotal = pageTotal
+
+	respWriter(context, "SUCCESS", result)
+}
+
+func userAdd(context iris.Context) {
+	if flag, _ := checkSession(context); !flag {
+		return
+	}
+	wc.BeginTime = time.Now()
+	wc.Ictx = context
+
+	err := webservice.AddUser(wc)
 	if err != nil {
 		respWriter(context, "FAIL", err)
 		return
@@ -264,15 +279,11 @@ func userDelete(context iris.Context) {
 	if flag, _ := checkSession(context); !flag {
 		return
 	}
-	c, err := config.New(wc.Ctx)
-	if err != nil {
-		context.WriteString(err.Error())
-		return
-	}
 	wc.BeginTime = time.Now()
 	wc.Ictx = context
 
-	err = webservice.DeleteUser(c.CacheDir, wc)
+	userID := context.URLParam("userId")
+	err := webservice.DeleteUser(userID)
 	if err != nil {
 		respWriter(context, "FAIL", err)
 		return
@@ -281,33 +292,14 @@ func userDelete(context iris.Context) {
 	respWriter(context, "SUCCESS", "删除成功")
 }
 
-func userGet(context iris.Context) {
-	if flag, _ := checkSession(context); !flag {
-		return
-	}
-	c, err := config.New(wc.Ctx)
-	if err != nil {
-		context.WriteString(err.Error())
-		return
-	}
-	wc.BeginTime = time.Now()
-	wc.Ictx = context
-
-	results, err := webservice.GetUsers(c.CacheDir, wc)
-	if err != nil {
-		respWriter(context, "FAIL", err)
-	}
-	respWriter(context, "SUCCESS", results)
-}
-
 // 验证会话
 func checkSession(context iris.Context) (bool, string) {
-	if auth, _ := sess.Start(context).GetBoolean("authenticated"); !auth {
-		respWriter(context, "UNLOGIN", nil)
-		return false, ""
-	}
-	// return true, "123456789"
-	return true, sess.Start(context).GetString("userID")
+	// if auth, _ := sess.Start(context).GetBoolean("authenticated"); !auth {
+	// 	respWriter(context, "UNLOGIN", nil)
+	// 	return false, ""
+	// }
+	// return true, sess.Start(context).GetString("userID")
+	return true, "123456789"
 }
 
 // 写入返回

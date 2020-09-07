@@ -48,7 +48,6 @@ const (
 func SaveHis(results report.Results, wc configup.WebContext, c config.Config) error {
 	// 插入 主表
 	id, _ := uuid.NewV4()
-	fmt.Println(id.String())
 	requestType := wc.Type
 	time := wc.BeginTime
 	target := c.Target
@@ -91,8 +90,9 @@ func SaveHis(results report.Results, wc configup.WebContext, c config.Config) er
 // GetHis 获取扫描历史列表
 func GetHis(index string, size string) (interface{}, string, error) {
 	indexInt, _ := strconv.Atoi(index)
-	indexInt = (indexInt - 1) * 10
-	rows, err := MysqlDb.Query("select h.scanid, h.type, h.time, h.target, h.userid, u.username from history h left join user u on h.userid = u.userid ORDER BY time desc LIMIT ?,?", indexInt, size)
+	sizeInt, _ := strconv.Atoi(size)
+	indexInt = (indexInt - 1) * sizeInt
+	rows, err := MysqlDb.Query("select h.scanid, h.type, h.time, h.target, h.userid, u.username from history h left join user u on h.userid = u.userid ORDER BY time desc LIMIT ?, ?", indexInt, size)
 	historydatas := []scanHistory{}
 	if err != nil {
 		fmt.Println(err)
