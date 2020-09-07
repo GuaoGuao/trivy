@@ -147,6 +147,7 @@ func listimages(context iris.Context) {
 	err := cmd.Run()
 	fmt.Println(out)
 	fmt.Println(hex.EncodeToString(out.Bytes()))
+	fmt.Println(out.String())
 
 	if err != nil {
 		respWriter(context, "FAIL", err)
