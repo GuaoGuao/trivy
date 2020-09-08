@@ -17,8 +17,8 @@ var MysqlDb *sql.DB
 var MysqlDbErr error
 
 const (
-	USER_NAME = "root"
-	PASS_WORD = "lihang321"
+	USER_NAME = "root321"
+	PASS_WORD = "lihang136464"
 	HOST      = "39.78.246.215"
 	PORT      = "3306"
 	DATABASE  = "trivy"
