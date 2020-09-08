@@ -2,7 +2,6 @@ package webservice
 
 import (
 	"bytes"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os/exec"
@@ -75,7 +74,7 @@ func typeHandler(context iris.Context) {
 	wc.Ictx = context
 	wc.UserID = userID
 
-	//获取post请求所携带的参数
+	// 获取post请求所携带的参数
 	type param struct {
 		Name string `json:"name"`
 		Type string `json:"type"`
@@ -114,7 +113,7 @@ func typeHandler(context iris.Context) {
 			return
 		}
 		respWriter(context, "SUCCESS", results)
-	} else {
+	} else if params.Type == "repo" {
 		// initialize config
 		if err = c.Init(false); err != nil {
 			context.WriteString("failed to initialize options: " + err.Error())
@@ -125,6 +124,23 @@ func typeHandler(context iris.Context) {
 		c.Target = params.Name
 		c.ExitCode = 1
 		results, err := artifact.RunWeb(c, artifact.RepositoryScanner, wc)
+
+		if err != nil {
+			respWriter(context, "FAIL", err)
+			return
+		}
+		respWriter(context, "SUCCESS", results)
+	} else if params.Type == "fs" {
+		// initialize config
+		if err = c.Init(false); err != nil {
+			context.WriteString("failed to initialize options: " + err.Error())
+			fmt.Printf("failed to initialize options: " + err.Error())
+			return
+		}
+
+		c.Target = params.Name
+		c.ExitCode = 1
+		results, err := artifact.RunWeb(c, artifact.FilesystemScanner, wc)
 
 		if err != nil {
 			respWriter(context, "FAIL", err)
@@ -143,12 +159,7 @@ func listimages(context iris.Context) {
 	var out bytes.Buffer
 	cmd.Stdout = &out
 
-	fmt.Println(out)
 	err := cmd.Run()
-	fmt.Println(out)
-	fmt.Println(hex.EncodeToString(out.Bytes()))
-	fmt.Println(out.String())
-
 	if err != nil {
 		respWriter(context, "FAIL", err)
 		return
@@ -299,12 +310,12 @@ func userDelete(context iris.Context) {
 
 // 验证会话
 func checkSession(context iris.Context) (bool, string) {
-	// if auth, _ := sess.Start(context).GetBoolean("authenticated"); !auth {
-	// 	respWriter(context, "UNLOGIN", nil)
-	// 	return false, ""
-	// }
-	// return true, sess.Start(context).GetString("userID")
-	return true, "123456789"
+	if auth, _ := sess.Start(context).GetBoolean("authenticated"); !auth {
+		respWriter(context, "UNLOGIN", nil)
+		return false, ""
+	}
+	return true, sess.Start(context).GetString("userID")
+	// return true, "123456789"
 }
 
 // 写入返回
