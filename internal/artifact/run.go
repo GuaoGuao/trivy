@@ -18,7 +18,6 @@ import (
 	"github.com/aquasecurity/trivy/pkg/scanner"
 	"github.com/aquasecurity/trivy/pkg/types"
 	"github.com/aquasecurity/trivy/pkg/utils"
-	"github.com/aquasecurity/trivy/pkg/webservice"
 	"github.com/pkg/errors"
 )
 
@@ -26,7 +25,7 @@ type InitializeScanner func(context.Context, string, cache.ArtifactCache, cache.
 	scanner.Scanner, func(), error)
 
 // RunWeb 调用 web 接口时用的，需要返回结果
-func RunWeb(c config.Config, initializeScanner InitializeScanner, wc configup.WebContext) (interface{}, error) {
+func RunWeb(c config.Config, initializeScanner InitializeScanner, wc configup.WebContext) (report.Results, error) {
 	results, err := subrun(c, initializeScanner)
 	if err != nil {
 		return nil, err
@@ -34,8 +33,6 @@ func RunWeb(c config.Config, initializeScanner InitializeScanner, wc configup.We
 	if results == nil {
 		return nil, errors.Errorf("没有检测到需要扫描的包")
 	}
-
-	webservice.SaveHis(results, wc, c)
 
 	if err = report.WriteResults(c.Format, c.Output, results, c.Template, c.Light); err != nil {
 		return nil, xerrors.Errorf("unable to write results: %w", err)

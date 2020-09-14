@@ -7,7 +7,6 @@ import (
 	"time"
 
 	typesDetail "github.com/aquasecurity/trivy-db/pkg/types"
-	"github.com/aquasecurity/trivy/internal/artifact/config"
 	"github.com/aquasecurity/trivy/pkg/types"
 	"github.com/boltdb/bolt"
 	uuid "github.com/iris-contrib/go.uuid"
@@ -36,7 +35,8 @@ type scanHistory struct {
 	RequestType string
 	Time        string
 	Target      string
-	Userid      string
+	From        string
+	Fromid      string
 	UserName    string `db:"username"`
 }
 
@@ -45,14 +45,16 @@ const (
 )
 
 // SaveHis 保存历史记录
-func SaveHis(results report.Results, wc configup.WebContext, c config.Config) error {
+func SaveHis(results report.Results, wc configup.WebContext) error {
 	// 插入 主表
 	id, _ := uuid.NewV4()
 	requestType := wc.Type
 	time := wc.BeginTime
-	target := c.Target
+	target := wc.Target
+	fromID := wc.FromID
+	from := wc.From
 	userID := wc.UserID
-	_, err := MysqlDb.Exec("insert INTO history(scanid, type, time, target, userid) values(?,?,?,?,?)", id.String(), requestType, time, target, userID)
+	_, err := MysqlDb.Exec("insert INTO history(scanid, type, time, target, fromwhere, fromid, userid) values(?,?,?,?,?,?,?)", id.String(), requestType, time, target, from, fromID, userID)
 	if err != nil {
 		fmt.Println("insert err:  ", err)
 		return err
@@ -79,6 +81,12 @@ func SaveHis(results report.Results, wc configup.WebContext, c config.Config) er
 	sqlStr += sqlStrData
 	stmt, _ := MysqlDb.Prepare(sqlStr)
 	_, err = stmt.Exec(sqlVal...)
+	if from == "timer" {
+		if err != nil {
+			MysqlDb.Exec("update timer set failtime=failtime+1 where timerid = ?", wc.FromID)
+		}
+		MysqlDb.Exec("update timer set successtime=successtime+1 where timerid = ?", wc.FromID)
+	}
 	if err != nil {
 		fmt.Println("batch insert err:  ", err)
 		return err
@@ -92,7 +100,7 @@ func GetHis(index string, size string) (interface{}, string, error) {
 	indexInt, _ := strconv.Atoi(index)
 	sizeInt, _ := strconv.Atoi(size)
 	indexInt = (indexInt - 1) * sizeInt
-	rows, err := MysqlDb.Query("select h.scanid, h.type, h.time, h.target, h.userid, u.username from history h left join user u on h.userid = u.userid ORDER BY time desc LIMIT ?, ?", indexInt, size)
+	rows, err := MysqlDb.Query("select h.scanid, h.type, h.time, h.target, h.fromwhere, h.fromid, u.username from history h left join user u on h.userid = u.userid ORDER BY time desc LIMIT ?, ?", indexInt, size)
 	historydatas := []scanHistory{}
 	if err != nil {
 		fmt.Println(err)
@@ -100,7 +108,7 @@ func GetHis(index string, size string) (interface{}, string, error) {
 	}
 	for rows.Next() {
 		var historydata scanHistory
-		err := rows.Scan(&historydata.Scanid, &historydata.RequestType, &historydata.Time, &historydata.Target, &historydata.Userid, &historydata.UserName)
+		err := rows.Scan(&historydata.Scanid, &historydata.RequestType, &historydata.Time, &historydata.Target, &historydata.From, &historydata.Fromid, &historydata.UserName)
 		DefaultTimeLoc := time.Local
 		formatterTime, err := time.ParseInLocation("2006-01-02 15:04:05", historydata.Time, DefaultTimeLoc)
 		historydata.Time = formatterTime.Format("2006-01-02 15:04:05")

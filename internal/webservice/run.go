@@ -7,9 +7,9 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/aquasecurity/trivy/internal/artifact"
 	"github.com/aquasecurity/trivy/internal/artifact/config"
 	configup "github.com/aquasecurity/trivy/internal/config"
+	"github.com/aquasecurity/trivy/internal/webservice/scanhandler"
 	"github.com/aquasecurity/trivy/pkg/webservice"
 	"github.com/kataras/iris"
 	"github.com/kataras/iris/sessions"
@@ -26,6 +26,7 @@ var sess = sessions.New(sessions.Config{Cookie: "secret"})
 
 // Run web 服务
 func Run(cliCtx *cli.Context) error {
+	// webservice.TimerAdd("* * * * *", "123", "1`23")
 	// 初始化数据库连接
 	webservice.Init()
 
@@ -45,6 +46,10 @@ func Run(cliCtx *cli.Context) error {
 	wc.Webapp.Get("/user/list", userList)
 	wc.Webapp.Get("/user/add", userAdd)
 	wc.Webapp.Get("/user/delete", userDelete)
+
+	wc.Webapp.Post("/timer/get", timerGet)
+	wc.Webapp.Post("/timer/add", timerAdd)
+	wc.Webapp.Post("/timer/delete", timerDelete)
 
 	wc.Webapp.Run(iris.Addr(":9327"), iris.WithoutServerError(iris.ErrServerClosed))
 
@@ -68,86 +73,26 @@ func typeHandler(context iris.Context) {
 	if !flag {
 		return
 	}
-	path := context.Path()
-	wc.Webapp.Logger().Info(path)
 	wc.BeginTime = time.Now()
 	wc.Ictx = context
 	wc.UserID = userID
+	wc.FromID = userID
+	wc.From = "user"
 
-	// 获取post请求所携带的参数
-	type param struct {
-		Name string `json:"name"`
-		Type string `json:"type"`
-	}
-	var params param
+	var params configup.Param
 	if err := context.ReadJSON(&params); err != nil {
 		panic(err.Error())
 	}
 	wc.Type = params.Type
+	wc.Target = params.Name
+	results, err := scanhandler.ScanHandler(wc, params)
+	webservice.SaveHis(results, wc)
 
-	c, err := config.New(wc.Ctx)
 	if err != nil {
-		context.WriteString(err.Error())
+		respWriter(wc.Ictx, "FAIL", err)
 		return
 	}
-
-	if params.Type == "image" {
-		// initialize config
-		if err = c.Init(true); err != nil {
-			context.WriteString("failed to initialize options: " + err.Error())
-			fmt.Printf("failed to initialize options: " + err.Error())
-			return
-		}
-		c.Target = params.Name
-		c.ExitCode = 1
-
-		if c.Input != "" {
-			// scan tar file
-			artifact.RunWeb(c, artifact.ArchiveScanner, wc)
-		}
-
-		results, err := artifact.RunWeb(c, artifact.DockerScanner, wc)
-
-		if err != nil {
-			respWriter(context, "FAIL", err)
-			return
-		}
-		respWriter(context, "SUCCESS", results)
-	} else if params.Type == "repo" {
-		// initialize config
-		if err = c.Init(false); err != nil {
-			context.WriteString("failed to initialize options: " + err.Error())
-			fmt.Printf("failed to initialize options: " + err.Error())
-			return
-		}
-
-		c.Target = params.Name
-		c.ExitCode = 1
-		results, err := artifact.RunWeb(c, artifact.RepositoryScanner, wc)
-
-		if err != nil {
-			respWriter(context, "FAIL", err)
-			return
-		}
-		respWriter(context, "SUCCESS", results)
-	} else if params.Type == "fs" {
-		// initialize config
-		if err = c.Init(false); err != nil {
-			context.WriteString("failed to initialize options: " + err.Error())
-			fmt.Printf("failed to initialize options: " + err.Error())
-			return
-		}
-
-		c.Target = params.Name
-		c.ExitCode = 1
-		results, err := artifact.RunWeb(c, artifact.FilesystemScanner, wc)
-
-		if err != nil {
-			respWriter(context, "FAIL", err)
-			return
-		}
-		respWriter(context, "SUCCESS", results)
-	}
+	respWriter(wc.Ictx, "SUCCESS", results)
 }
 
 func listimages(context iris.Context) {
@@ -308,14 +253,78 @@ func userDelete(context iris.Context) {
 	respWriter(context, "SUCCESS", "删除成功")
 }
 
+func timerGet(context iris.Context) {
+	if flag, _ := checkSession(context); !flag {
+		return
+	}
+	wc.BeginTime = time.Now()
+	wc.Ictx = context
+
+	pageIndex := context.URLParam("pageIndex")
+	pageSize := context.URLParam("pageSize")
+	results, pageTotal, err := webservice.TimerGet(pageIndex, pageSize)
+	if err != nil {
+		respWriter(context, "FAIL", err)
+	}
+
+	var result pageRes
+	result.Results = results
+	result.PageTotal = pageTotal
+
+	respWriter(context, "SUCCESS", result)
+}
+
+func timerAdd(context iris.Context) {
+	flag, userID := checkSession(context)
+	if !flag {
+		return
+	}
+	wc.BeginTime = time.Now()
+	wc.Ictx = context
+	wc.UserID = userID
+
+	var params configup.Param
+	if err := context.ReadJSON(&params); err != nil {
+		panic(err.Error())
+	}
+	wc.Type = params.Type
+
+	err := webservice.TimerAdd(wc, params)
+	if err != nil {
+		respWriter(context, "FAIL", err)
+		return
+	}
+
+	respWriter(context, "SUCCESS", "定时任务添加成功")
+}
+
+func timerDelete(context iris.Context) {
+	flag, userID := checkSession(context)
+	if !flag {
+		return
+	}
+	wc.BeginTime = time.Now()
+	wc.Ictx = context
+	wc.UserID = userID
+	timerID := context.URLParam("timerId")
+
+	err := webservice.TimerDelete(wc, timerID)
+	if err != nil {
+		respWriter(context, "FAIL", err)
+		return
+	}
+
+	respWriter(context, "SUCCESS", "定时任务添加成功")
+}
+
 // 验证会话
 func checkSession(context iris.Context) (bool, string) {
-	if auth, _ := sess.Start(context).GetBoolean("authenticated"); !auth {
-		respWriter(context, "UNLOGIN", nil)
-		return false, ""
-	}
-	return true, sess.Start(context).GetString("userID")
-	// return true, "123456789"
+	// if auth, _ := sess.Start(context).GetBoolean("authenticated"); !auth {
+	// 	respWriter(context, "UNLOGIN", nil)
+	// 	return false, ""
+	// }
+	// return true, sess.Start(context).GetString("userID")
+	return true, "123456789"
 }
 
 // 写入返回

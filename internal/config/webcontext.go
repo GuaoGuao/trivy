@@ -7,13 +7,23 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+// 获取post请求所携带的参数 typehandler
+type Param struct {
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Interval string `json:"interval"`
+}
+
 type WebContext struct {
 	Webapp    *iris.Application
 	Ctx       *cli.Context
 	BeginTime time.Time
 	Ictx      iris.Context
 	Type      string
+	Target    string
 	UserID    string
+	FromID    string
+	From      string
 }
 
 type Response struct {
