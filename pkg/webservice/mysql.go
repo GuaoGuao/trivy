@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"net/url"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -17,9 +18,15 @@ var MysqlDb *sql.DB
 var MysqlDbErr error
 
 const (
-	USER_NAME = "root321"
-	PASS_WORD = "lihang136464"
-	HOST      = "39.78.246.215"
+	// USER_NAME = "root321"
+	// PASS_WORD = "lihang136464"
+	// HOST      = "39.78.246.215"
+	// PORT      = "3306"
+	// DATABASE  = "trivy"
+	// CHARSET   = "utf8"
+	USER_NAME = "root"
+	PASS_WORD = "lihang321"
+	HOST      = "localhost"
 	PORT      = "3306"
 	DATABASE  = "trivy"
 	CHARSET   = "utf8"
@@ -27,7 +34,7 @@ const (
 
 // 初始化链接
 func Init() {
-	dbDSN := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=%s", USER_NAME, PASS_WORD, HOST, PORT, DATABASE, CHARSET)
+	dbDSN := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=%s&loc=%s&parseTime=true", USER_NAME, PASS_WORD, HOST, PORT, DATABASE, CHARSET, url.QueryEscape("Asia/Shanghai"))
 
 	// 打开连接失败
 	MysqlDb, MysqlDbErr = sql.Open("mysql", dbDSN)

@@ -100,7 +100,7 @@ func GetHis(index string, size string) (interface{}, string, error) {
 	indexInt, _ := strconv.Atoi(index)
 	sizeInt, _ := strconv.Atoi(size)
 	indexInt = (indexInt - 1) * sizeInt
-	rows, err := MysqlDb.Query("select h.scanid, h.type, h.time, h.target, h.fromwhere, h.fromid, u.username from history h left join user u on h.userid = u.userid ORDER BY time desc LIMIT ?, ?", indexInt, size)
+	rows, err := MysqlDb.Query("select h.scanid, h.type, h.time, h.target, h.fromwhere, h.fromid, IFNULL(u.username,'') username from history h left join user u on h.userid = u.userid ORDER BY time desc LIMIT ?, ?", indexInt, size)
 	historydatas := []scanHistory{}
 	if err != nil {
 		fmt.Println(err)
@@ -108,10 +108,12 @@ func GetHis(index string, size string) (interface{}, string, error) {
 	}
 	for rows.Next() {
 		var historydata scanHistory
-		err := rows.Scan(&historydata.Scanid, &historydata.RequestType, &historydata.Time, &historydata.Target, &historydata.From, &historydata.Fromid, &historydata.UserName)
-		DefaultTimeLoc := time.Local
-		formatterTime, err := time.ParseInLocation("2006-01-02 15:04:05", historydata.Time, DefaultTimeLoc)
-		historydata.Time = formatterTime.Format("2006-01-02 15:04:05")
+		var scanTime time.Time
+		err := rows.Scan(&historydata.Scanid, &historydata.RequestType, &scanTime, &historydata.Target, &historydata.From, &historydata.Fromid, &historydata.UserName)
+		if historydata.UserName == "" {
+			historydata.UserName = "定时器"
+		}
+		historydata.Time = scanTime.Format("2006-01-02 15:04:05")
 		if err != nil {
 			fmt.Println(err)
 		}

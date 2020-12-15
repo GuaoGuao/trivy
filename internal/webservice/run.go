@@ -47,9 +47,9 @@ func Run(cliCtx *cli.Context) error {
 	wc.Webapp.Get("/user/add", userAdd)
 	wc.Webapp.Get("/user/delete", userDelete)
 
-	wc.Webapp.Post("/timer/get", timerGet)
+	wc.Webapp.Get("/timer/get", timerGet)
 	wc.Webapp.Post("/timer/add", timerAdd)
-	wc.Webapp.Post("/timer/delete", timerDelete)
+	wc.Webapp.Get("/timer/delete", timerDelete)
 
 	wc.Webapp.Run(iris.Addr(":9327"), iris.WithoutServerError(iris.ErrServerClosed))
 
@@ -307,8 +307,9 @@ func timerDelete(context iris.Context) {
 	wc.Ictx = context
 	wc.UserID = userID
 	timerID := context.URLParam("timerId")
+	cronID := context.URLParam("cronId")
 
-	err := webservice.TimerDelete(wc, timerID)
+	err := webservice.TimerDelete(wc, timerID, cronID)
 	if err != nil {
 		respWriter(context, "FAIL", err)
 		return
@@ -319,12 +320,13 @@ func timerDelete(context iris.Context) {
 
 // 验证会话
 func checkSession(context iris.Context) (bool, string) {
-	// if auth, _ := sess.Start(context).GetBoolean("authenticated"); !auth {
-	// 	respWriter(context, "UNLOGIN", nil)
-	// 	return false, ""
-	// }
-	// return true, sess.Start(context).GetString("userID")
-	return true, "123456789"
+	if auth, _ := sess.Start(context).GetBoolean("authenticated"); !auth {
+		respWriter(context, "UNLOGIN", nil)
+		return false, ""
+	}
+	useID := sess.Start(context).GetString("userId")
+	return true, useID
+	// return true, "123456789"
 }
 
 // 写入返回

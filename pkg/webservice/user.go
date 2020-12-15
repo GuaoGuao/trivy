@@ -63,6 +63,9 @@ func AddUser(wc config.WebContext) error {
 	createTime := time.Now()
 	loginTime := time.Now()
 	userType := wc.Ictx.URLParam("type")
+	if userType == "" {
+		userType = "user"
+	}
 
 	// md5 加密
 	myMd5 := md5.New()
@@ -112,7 +115,11 @@ func GetUsers(index string, size string) (interface{}, string, error) {
 	users := []user{}
 	for rows.Next() {
 		var auser user
-		rows.Scan(&auser.Userid, &auser.Username, &auser.CreateTime, &auser.Logintime, &auser.Usertype)
+		var ctime time.Time
+		var ltime time.Time
+		rows.Scan(&auser.Userid, &auser.Username, &ctime, &ltime, &auser.Usertype)
+		auser.CreateTime = ctime.Format("2006-01-02 15:04:05")
+		auser.Logintime = ltime.Format("2006-01-02 15:04:05")
 		users = append(users, auser)
 	}
 
